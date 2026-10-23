@@ -1,0 +1,23 @@
+{
+  "name": "ghufran-khalil-petroleum-pump",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ghufran Khalil Petroleum Pump — fuel station hisab, Android app and live web updates",
+  "scripts": {
+    "build": "node scripts/build-web.js",
+    "sync": "npm run build && cap sync android",
+    "android": "npm run build && cap sync android && cap open android",
+    "icons": "capacitor-assets generate --android"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.0.0"
+  }
+}

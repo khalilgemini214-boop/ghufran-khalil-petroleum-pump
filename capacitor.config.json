@@ -1,0 +1,14 @@
+{
+  "appId": "com.ghufrankhalil.petroleumpump",
+  "appName": "Ghufran Khalil Petroleum Pump",
+  "webDir": "www",
+  "server": {
+    "url": "https://khalilgemini214-boop.github.io/ghufran-khalil-petroleum-pump/",
+    "androidScheme": "https",
+    "cleartext": false,
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
