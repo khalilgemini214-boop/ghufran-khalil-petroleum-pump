@@ -8,7 +8,13 @@ const APP = './index.html';
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll([APP])).catch(() => {})
+    fetch(APP, { cache: 'no-store' })
+      .then((res) => {
+        if (res && res.ok) {
+          return caches.open(CACHE).then((cache) => cache.put(APP, res));
+        }
+      })
+      .catch(() => {})
   );
 });
 

@@ -20,6 +20,9 @@ without reinstalling the APK.
 
 > The APK is a one-time install. Future app updates are pushed to GitHub Pages and are picked up
 > automatically the next time the app opens online. You do **not** need a new APK for normal updates.
+>
+> Each CI debug APK can be signed with a different key. If you ever need to install a newer APK over
+> the old one, take a backup and uninstall the old app first. Normal web updates never need this.
 
 ---
 
