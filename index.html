@@ -338,6 +338,27 @@ html[data-theme="dark"] #toast-root{bottom:96px}
 .sheet-item .qi{width:34px;height:34px;border-radius:10px;display:grid;place-items:center}
 .sheet-item.active{border-color:var(--amber);background:var(--amber-soft)}
 
+/* ============ NOZZLE CARDS ============ */
+.nozzle-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+.nozzle-card{display:flex;flex-direction:column;gap:12px;min-width:0}
+.nozzle-card .nc-top{display:flex;align-items:center;gap:11px;min-width:0}
+.nozzle-card .nc-av{width:42px;height:42px;border-radius:13px;flex:0 0 auto}
+.nozzle-card .nc-main{flex:1;min-width:0}
+.nozzle-card .nc-name{font-size:13.5px;font-weight:800;line-height:1.3;overflow-wrap:anywhere}
+.nozzle-card .nc-sub{font-size:11.5px;color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.nozzle-card .nc-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px dashed var(--line);padding-top:11px}
+.nozzle-card .nc-meter{display:flex;align-items:baseline;gap:6px;min-width:0}
+.nozzle-card .nc-val{font-size:22px;font-weight:850;letter-spacing:-.03em;line-height:1.1;overflow-wrap:anywhere}
+.nozzle-card .nc-unit{font-size:10.5px;color:var(--muted);font-weight:650;white-space:nowrap}
+
+/* ============ FLOATING ACTION BUTTON ============ */
+.fab{display:none;position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));z-index:45;
+  align-items:center;gap:8px;padding:13px 17px;border:0;border-radius:999px;cursor:pointer;
+  background:linear-gradient(180deg,#ffb939,#f5a524);color:#241705;font-size:13px;font-weight:800;letter-spacing:-.01em;
+  box-shadow:0 2px 0 rgba(160,100,0,.2), 0 12px 28px rgba(245,165,36,.42);transition:.15s}
+.fab:active{transform:scale(.97)}
+.fab span{white-space:nowrap}
+
 /* ============ RESPONSIVE ============ */
 @media (max-width:1100px){
   .k4{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -347,7 +368,7 @@ html[data-theme="dark"] #toast-root{bottom:96px}
 @media (max-width:980px){
   .sidebar{display:none}
   .mobile-brand{display:grid}
-  .view{padding:18px 16px 100px}
+  .view{padding:18px 16px 150px}
   .topbar{padding:12px 16px}
   .bottomnav{
     display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;
@@ -380,6 +401,25 @@ html[data-theme="dark"] #toast-root{bottom:96px}
   .modal{width:100%;max-width:100%;max-height:94vh;max-height:94dvh;border-radius:20px 20px 0 0;animation:sheet .22s cubic-bezier(.2,.9,.3,1)}
   .modal-body{padding-bottom:8px}
   .modal-foot{padding-bottom:calc(13px + env(safe-area-inset-bottom))}
+  /* Primary page actions become floating buttons on phones */
+  .fab{display:inline-flex}
+  .topbar-add{display:none}
+  .page-actions .btn:not(.ghost){display:none}
+}
+@media (max-width:640px){
+  /* Stacked record cards (purchases, suppliers) so long text never collides */
+  .row.rec{flex-wrap:wrap;row-gap:9px;align-items:flex-start;padding:12px 0}
+  .row.rec .row-main{flex:1 1 calc(100% - 46px);min-width:0}
+  .row.rec .row-title{white-space:normal;line-height:1.35}
+  .row.rec .row-sub{font-size:11px;line-height:1.45}
+  .row.rec .row-right{order:3;flex:1 1 auto;margin-left:46px;text-align:left;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .row.rec .row-amt{font-size:14px}
+  .row.rec .row-actions{order:4;margin-left:auto;align-self:center}
+  .nozzle-card .nc-val{font-size:20px}
+}
+@media (max-width:380px){
+  .nozzle-card .nc-unit{white-space:normal}
+  .fab{padding:12px 15px;font-size:12.5px}
 }
 @media (max-width:560px){
   .k2{grid-template-columns:1fr}
@@ -669,6 +709,7 @@ function seedData(){
     customers:[],
     customerPayments:[],
     dips:[],
+    meterResets:[],
     cashEntries:[]
   };
 }
@@ -678,7 +719,7 @@ function migrate(data){
   const out = Object.assign({}, base, data);
   out.meta = Object.assign({}, base.meta, data.meta||{});
   out.settings = Object.assign({}, base.settings, data.settings||{});
-  ['partners','products','tanks','nozzles','sales','purchases','suppliers','supplierPayments','expenses','staff','salaryPayments','investments','loans','loanRepayments','drawings','customers','customerPayments','dips','cashEntries','rateHistory'].forEach(k=>{
+  ['partners','products','tanks','nozzles','sales','purchases','suppliers','supplierPayments','expenses','staff','salaryPayments','investments','loans','loanRepayments','drawings','customers','customerPayments','dips','meterResets','cashEntries','rateHistory'].forEach(k=>{
     if(!Array.isArray(out[k])) out[k] = base[k];
   });
   out.rates = Object.assign({}, base.rates, data.rates||{});
@@ -756,6 +797,16 @@ const PAGES = [
   {id:'settings', label:'Settings', icon:'gear'}
 ];
 const BOTTOM_PAGES = ['dashboard','sales','purchases','expenses'];
+const PAGE_FAB = {
+  dashboard:{act:'quick-add', label:'New entry'},
+  sales:{act:'new-sale', label:'New reading'},
+  purchases:{act:'new-purchase', label:'New purchase'},
+  stock:{act:'new-dip', label:'Tank dip'},
+  expenses:{act:'new-expense', label:'New expense'},
+  staff:{act:'new-staff', label:'Add staff'},
+  partners:{act:'new-investment', label:'Add investment'},
+  cash:{act:'new-cash', label:'Cash entry'}
+};
 
 /* ---------------- MODAL ---------------- */
 let modalState = { onSubmit:null };
@@ -855,13 +906,19 @@ function shellHTML(page){
         '<div class="tb-actions">'+
           '<div class="cash-chip hide-xs" title="Cash in hand"><div class="dot"'+(cash<0?' style="background:var(--red-soft);color:var(--red)"':'')+'>'+icon('wallet',13)+'</div><span class="lbl">Cash</span><b class="num"'+(cash<0?' style="color:var(--red)"':'')+'>'+money0(cash)+'</b></div>'+
           '<button class="icon-btn" data-act="theme" aria-label="Toggle theme">'+icon(DB.settings.theme==='dark'?'sun':'moon',18)+'</button>'+
-          '<button class="btn md" data-act="quick-add">'+icon('plus',16)+'<span>New Entry</span></button>'+
+          '<button class="btn md topbar-add" data-act="quick-add">'+icon('plus',16)+'<span>New Entry</span></button>'+
         '</div>'+
       '</header>'+
       '<main class="view" id="view">'+renderPage(page)+'</main>'+
+      fabHTML(page)+
     '</div>'+
   '</div>';
   // bottom nav is rendered separately
+}
+function fabHTML(page){
+  const f = PAGE_FAB[page];
+  if(!f) return '';
+  return '<button class="fab no-print" data-act="'+f.act+'" aria-label="'+attr(f.label)+'">'+icon('plus',19)+'<span>'+esc(f.label)+'</span></button>';
 }
 function bottomNavHTML(){
   const page = UI.page;
@@ -1011,6 +1068,8 @@ document.addEventListener('click', function(e){
     case 'add-nozzle': openNozzleForm(); break;
     case 'edit-nozzle': openNozzleForm(id); break;
     case 'del-nozzle': confirmDelete('nozzle', id); break;
+    case 'reset-meter': openMeterResetForm(id); break;
+    case 'del-meter-reset': confirmDelete('meterReset', id); break;
     case 'open-sale-from-nozzle': openSaleForm(null, id); break;
     case 'dismiss-setup': DB.settings.setupDismissed = true; save(); render(); break;
   }
@@ -1035,11 +1094,30 @@ function currentRate(product){
   if(hist.length) return num(hist[0].rate);
   return num(DB.rates[product]);
 }
-function latestMeter(nozzleId, dateStr, excludeId){
+function meterEvents(nozzleId, excludeId){
   const nz = nozzleById(nozzleId);
-  const list = DB.sales.filter(s=>s.nozzleId===nozzleId && (!excludeId || s.id!==excludeId) && (!dateStr || s.date<=dateStr))
-    .sort((a,b)=> a.date===b.date ? (a.createdAt||0)-(b.createdAt||0) : (a.date<b.date?-1:1));
-  if(list.length) return num(list[list.length-1].closing);
+  const events = [];
+  if(nz) events.push({date:'0000-00-00', ts:0, reading:num(nz.openingMeter), kind:'opening'});
+  DB.sales.forEach(s=>{
+    if(s.nozzleId!==nozzleId) return;
+    if(excludeId && s.id===excludeId) return;
+    events.push({date:s.date, ts:s.createdAt||0, reading:num(s.closing), kind:'sale'});
+  });
+  DB.meterResets.forEach(r=>{
+    if(r.nozzleId!==nozzleId) return;
+    events.push({date:r.date, ts:r.createdAt||0, reading:num(r.reading), kind:'reset'});
+  });
+  return events;
+}
+function latestMeterEvent(nozzleId, dateStr, excludeId){
+  const list = meterEvents(nozzleId, excludeId).filter(e=>!dateStr || e.date<=dateStr)
+    .sort((a,b)=> a.date===b.date ? (a.ts-b.ts) : (a.date<b.date?-1:1));
+  return list.length ? list[list.length-1] : null;
+}
+function latestMeter(nozzleId, dateStr, excludeId){
+  const ev = latestMeterEvent(nozzleId, dateStr, excludeId);
+  if(ev) return ev.reading;
+  const nz = nozzleById(nozzleId);
   return nz ? num(nz.openingMeter) : 0;
 }
 function avgCost(product, uptoDate){
@@ -1238,7 +1316,7 @@ function pageDashboard(){
   const hour = new Date().getHours();
   const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const firstName = (DB.partners[0] && DB.partners[0].name || 'Partner').split(' ')[0];
-  const setupNeeded = currentRate('petrol') === 0 || currentRate('diesel') === 0 || !DB.settings.setupDismissed;
+  const setupNeeded = !DB.settings.setupDismissed;
   const activity = allActivity().slice(0,6);
   const lowPetrol = stP.capacity && stP.book/stP.capacity < 0.15;
   const lowDiesel = stD.capacity && stD.book/stD.capacity < 0.15;
@@ -1306,7 +1384,7 @@ function pageDashboard(){
   '</div>'+
 
   '<div class="section-title"><div><h2>Meter status</h2><p>Current closing reading per nozzle</p></div></div>'+
-  '<div class="grid" style="grid-template-columns:repeat('+Math.min(2,Math.max(1,DB.nozzles.length))+',minmax(0,1fr))">'+nozzleCards+'</div>'+
+  '<div class="nozzle-grid">'+nozzleCards+'</div>'+
 
   '<div class="grid k23" style="margin-top:18px">'+
     '<div class="card">'+
@@ -1371,15 +1449,22 @@ function pageSales(){
   '</div>'+
 
   '<div class="section-title"><div><h2>Nozzle status</h2><p>Add a reading as soon as a shift ends</p></div></div>'+
-  '<div class="grid" style="grid-template-columns:repeat('+Math.min(2,Math.max(1,DB.nozzles.length))+',minmax(0,1fr))">'+
+  '<div class="nozzle-grid">'+
     DB.nozzles.map(nz=>{
       const last = latestMeter(nz.id);
       const prod = productById(nz.product);
-      return '<div class="card card-pad" style="display:flex;align-items:center;gap:12px">'+
-        '<div class="partner-avatar '+(nz.product==='diesel'?'b':'a')+'" style="width:42px;height:42px;border-radius:13px">'+icon('fuel',19)+'</div>'+
-        '<div style="flex:1;min-width:0"><div class="row-title">'+esc(nz.dispenser)+' · '+esc(nz.name)+'</div><div class="row-sub">'+esc(prod.name)+' · rate '+nfMoney.format(currentRate(nz.product))+'</div>'+
-        '<div class="num" style="font-size:17px;font-weight:800;margin-top:2px">'+nfMoney.format(last)+' <span class="tiny muted" style="font-weight:600">L</span></div></div>'+
-        '<button class="btn sm ghost no-print" data-act="open-sale-from-nozzle" data-id="'+nz.id+'">'+icon('plus',14)+'</button>'+
+      const lastEv = latestMeterEvent(nz.id);
+      return '<div class="card card-pad nozzle-card">'+
+        '<div class="nc-top">'+
+          '<div class="partner-avatar '+(nz.product==='diesel'?'b':'a')+' nc-av">'+icon('fuel',19)+'</div>'+
+          '<div class="nc-main"><div class="nc-name">'+esc(nz.dispenser)+' · '+esc(nz.name)+'</div>'+
+          '<div class="nc-sub">'+esc(prod.name)+' · rate '+nfMoney.format(currentRate(nz.product))+'</div></div>'+
+          '<button class="mini-btn no-print" data-act="reset-meter" data-id="'+nz.id+'" aria-label="Reset meter reading" title="Reset meter reading">'+icon('refresh',14)+'</button>'+
+        '</div>'+
+        '<div class="nc-foot">'+
+          '<div class="nc-meter"><span class="nc-val num">'+nfMoney.format(last)+'</span><span class="nc-unit">L last reading'+(lastEv&&lastEv.kind==='reset'?' · reset':'')+'</span></div>'+
+          '<button class="btn sm ghost no-print" data-act="open-sale-from-nozzle" data-id="'+nz.id+'" aria-label="Add meter reading">'+icon('plus',14)+'<span>Reading</span></button>'+
+        '</div>'+
       '</div>';
     }).join('')+
   '</div>'+
@@ -1482,7 +1567,7 @@ function openSaleForm(id, presetNozzle){
         inputField('customerName','Customer name (if credit)', {value: editing?editing.customerName||'':''})+
         '<div class="field full"><label for="sale-note">Note (optional)</label><textarea id="sale-note" name="note" placeholder="e.g. night shift, generator, etc.">'+esc(editing?editing.note||'':'')+'</textarea></div>'+
       '</div>'+
-      '<div class="form-note">Meter readings are the most accurate record. If the nozzle was reset, enter the new reading as opening for the next entry.</div>',
+      '<div class="form-note">Meter readings are the most accurate record. If the dispenser meter was reset physically, record the reset in <b>Settings → Nozzles</b> (Reset button) and this opening reading will follow the new number automatically.</div>',
     onMount: function(form){
       const g = n => form.querySelector('#'+n);
       const opening = g('opening'), closing = g('closing'), rate = g('rate'), lit = g('litres'), cash = g('cash');
@@ -1520,7 +1605,7 @@ function openSaleForm(id, presetNozzle){
       if(!n) fail('Select a nozzle.');
       const opening = num(fd.opening), closing = num(fd.closing), rate = num(fd.rate);
       if(fd.opening==='' || fd.closing==='') fail('Opening and closing readings are required.');
-      if(closing < opening) fail('Closing reading cannot be less than opening reading.');
+      if(closing < opening) fail('Closing reading is less than the opening reading. If the dispenser meter was reset physically, record the reset first in Settings → Nozzles (Reset button).');
       if(rate <= 0) fail('Enter a valid rate per litre.');
       const l = round2(closing - opening);
       if(l <= 0) fail('Litres sold is zero. Check the meter readings.');
@@ -1608,7 +1693,7 @@ function openQuickAdd(){
 /* ==========================================================================
    PURCHASES & SUPPLIERS
    ========================================================================== */
-const EXPENSE_CATEGORIES = ['Diesel & Fuel (other)','Electricity','Rent','Repairs & Maintenance','Transport / Freight','Tea & Food','Stationery','Government / Tax','Telephone / Internet','Cleaning','Miscellaneous'];
+const EXPENSE_CATEGORIES = ['Diesel & Fuel (other)','Electricity','Rent','Repairs & Maintenance','Transport / Freight','Marketing','Tea & Food','Stationery','Government / Tax','Telephone / Internet','Cleaning','Miscellaneous'];
 function pagePurchases(){
   const mk = UI.purchMonth;
   const purch = DB.purchases.filter(p=>inMonth(p.date,mk)).sort((a,b)=> a.date===b.date ? (b.createdAt||0)-(a.createdAt||0) : (a.date<b.date?1:-1));
@@ -1642,7 +1727,7 @@ function purchasesTabHTML(purch, mk){
       (purch.length ? '<div class="rows">'+purch.map(p=>{
         const sup = supplierById(p.supplierId);
         const due = round2(num(p.amount)-num(p.paid));
-        return '<div class="row">'+
+        return '<div class="row rec">'+
           '<div class="partner-avatar b" style="width:34px;height:34px;border-radius:10px">'+icon('truck',16)+'</div>'+
           '<div class="row-main"><div class="row-title">'+esc(productById(p.product).name)+' · '+litres(p.litres)+' <span class="badge '+(due>0?'red':'green')+'">'+(due>0?'On credit':'Paid')+'</span></div>'+
             '<div class="row-sub"><span>'+esc(sup.name)+'</span><span>·</span><span>'+fmtDate(p.date)+'</span><span>·</span><span>@ '+nfMoney.format(p.rate)+'/L</span>'+(p.invoice?'<span>·</span><span>'+esc(p.invoice)+'</span>':'')+'</div></div>'+
@@ -1661,7 +1746,7 @@ function suppliersTabHTML(){
       '<div class="card-body">'+
         (sups.length ? '<div class="rows">'+sups.map(s=>{
           const due = supplierDues(s.id);
-          return '<div class="row"><div class="partner-avatar a" style="width:34px;height:34px;border-radius:10px">'+esc(initials(s.name))+'</div>'+
+          return '<div class="row rec"><div class="partner-avatar a" style="width:34px;height:34px;border-radius:10px">'+esc(initials(s.name))+'</div>'+
             '<div class="row-main"><div class="row-title">'+esc(s.name)+'</div><div class="row-sub">'+(s.phone?esc(s.phone)+' · ':'')+(due>0?'Due '+money(due):'No balance')+'</div></div>'+
             '<div class="row-actions no-print"><button class="btn sm ghost" data-act="pay-supplier" data-id="'+s.id+'">Pay</button>'+
             '<button class="mini-btn" data-act="edit-supplier" data-id="'+s.id+'" aria-label="Edit">'+icon('edit',14)+'</button>'+
@@ -2732,10 +2817,11 @@ function pageSettings(){
       '<div class="card-body" style="display:flex;flex-direction:column;gap:9px">'+
         DB.nozzles.map(n=>'<div class="row" style="padding:9px 0"><div class="partner-avatar '+(n.product==='diesel'?'b':'a')+'" style="width:34px;height:34px;border-radius:10px">'+icon('fuel',16)+'</div>'+
           '<div class="row-main"><div class="row-title">'+esc(n.dispenser)+' · '+esc(n.name)+'</div><div class="row-sub">'+esc(productById(n.product).name)+' · opening meter '+nfMoney.format(n.openingMeter)+' L · last '+nfMoney.format(latestMeter(n.id))+'</div></div>'+
-          '<div class="row-actions no-print"><button class="mini-btn" data-act="edit-nozzle" data-id="'+n.id+'" aria-label="Edit">'+icon('edit',14)+'</button><button class="mini-btn danger" data-act="del-nozzle" data-id="'+n.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div></div>').join('')+
+          '<div class="row-actions no-print"><button class="mini-btn" data-act="reset-meter" data-id="'+n.id+'" aria-label="Reset meter" title="Reset meter reading">'+icon('refresh',14)+'</button><button class="mini-btn" data-act="edit-nozzle" data-id="'+n.id+'" aria-label="Edit">'+icon('edit',14)+'</button><button class="mini-btn danger" data-act="del-nozzle" data-id="'+n.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div></div>').join('')+
         '<button class="btn ghost sm no-print" data-act="add-nozzle">'+icon('plus',14)+' Add nozzle</button>'+
       '</div></div>'+
   '</div>'+
+  meterResetCardHTML()+
   '<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Data & backup</h3><p>Your data is stored only on this device</p></div></div>'+
     '<div class="card-body">'+
       '<div class="alert blue" style="margin-bottom:12px">'+icon('shield',16)+'<div>Take a backup after every busy day. The backup file contains all sales, purchases, expenses, staff, partners and settings. Keep a copy on WhatsApp or Google Drive.</div></div>'+
@@ -2772,6 +2858,25 @@ function pageSettings(){
     '</div></div>'+
   '<div class="tiny muted" style="text-align:center;margin:22px 0 8px">Ghufran Khalil Petroleum Pump · Hisab v1 · Build '+esc(buildLabel())+'</div>'+
   '';
+}
+function meterResetCardHTML(){
+  const resets = DB.meterResets.slice().sort((a,b)=> a.date===b.date ? (b.createdAt||0)-(a.createdAt||0) : (a.date<b.date?1:-1));
+  return '<div class="card" style="margin-top:14px">'+
+    '<div class="card-head"><div><h3>Meter resets</h3><p>When a dispenser meter was reset physically</p></div></div>'+
+    '<div class="card-body">'+
+      (resets.length ? '<div class="rows">'+resets.map(r=>{
+        const nz = nozzleById(r.nozzleId) || {dispenser:'Nozzle', name:''};
+        const diff = round2(num(r.reading) - num(r.previous));
+        return '<div class="row rec">'+
+          '<div class="partner-avatar c" style="width:34px;height:34px;border-radius:10px">'+icon('refresh',16)+'</div>'+
+          '<div class="row-main"><div class="row-title">'+esc(nz.dispenser)+' · '+esc(nz.name)+' <span class="badge gray">Reset</span></div>'+
+            '<div class="row-sub"><span>'+fmtDate(r.date)+'</span><span>·</span><span class="num">'+nfMoney.format(r.previous)+' → '+nfMoney.format(r.reading)+' L</span>'+(r.note?'<span>·</span><span>'+esc(r.note)+'</span>':'')+'</div></div>'+
+          '<div class="row-right"><div class="row-amt num">'+nfMoney.format(diff)+' L</div></div>'+
+          '<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-meter-reset" data-id="'+r.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div>'+
+        '</div>';
+      }).join('')+'</div>'
+      : '<div class="alert blue" style="align-items:center">'+icon('info',15)+'<div>If a dispenser meter is reset on the machine, record it here first. Past sales stay untouched and your next reading simply starts from the new number.</div></div>')+
+    '</div></div>';
 }
 function saveSettings(){
   const val = id => { const el=$('#'+id); return el?el.value:''; };
@@ -2842,6 +2947,55 @@ function openNozzleForm(id){
     }
   });
 }
+function openMeterResetForm(nozzleId){
+  if(!DB.nozzles.length){ toast('Add a nozzle first','err'); return; }
+  const opts = DB.nozzles.map(n=>({value:n.id,label:n.dispenser+' · '+n.name+' ('+productById(n.product).name+')'}));
+  const sid = nozzleId || DB.nozzles[0].id;
+  const nz = nozzleById(sid) || DB.nozzles[0];
+  const current = latestMeter(nz.id);
+  openModal({
+    title:'Reset meter reading',
+    subtitle:'Use when the dispenser meter was reset physically. Past sales stay unchanged.',
+    submitLabel:'Save reset',
+    body:'<div class="form-grid">'+
+      dateField('date','Date of reset',todayISO())+
+      selectField('nozzleId','Nozzle',opts,sid,{full:true})+
+      inputField('reading','New meter reading (L)',{type:'number',step:'0.01',min:0,required:true,hint:'Reading shown on the dispenser right after the reset'})+
+      '<div class="calc-box full">'+
+        '<div class="stat-line"><span class="k">Last reading before reset</span><span class="v num" id="mr-current">'+nfMoney.format(current)+' L</span></div>'+
+        '<div class="stat-line"><span class="k">Next reading will start from</span><span class="v num" id="mr-diff">—</span></div>'+
+        '<div class="tiny down" id="mr-warn" style="display:none;margin-top:4px">This number is not lower than the last reading. Double-check it before saving.</div>'+
+      '</div>'+
+      '<div class="field full"><label for="mr-note">Note (optional)</label><textarea id="mr-note" name="note" placeholder="e.g. meter board replaced, reading rolled back to zero"></textarea></div>'+
+    '</div>'+
+    '<div class="form-note">Only the starting point of your next meter reading changes. Every past sale, litre, stock movement and rupee stays exactly as it is.</div>',
+    onMount:function(form){
+      const g = n => form.querySelector('#'+n);
+      const nzSel = g('nozzleId'), readEl = g('reading');
+      function refresh(){
+        const prev = latestMeter(nzSel.value);
+        const hasVal = readEl.value !== '';
+        $('#mr-current').textContent = nfMoney.format(prev) + ' L';
+        $('#mr-diff').textContent = hasVal ? nfMoney.format(num(readEl.value)) + ' L' : '—';
+        $('#mr-warn').style.display = hasVal && num(readEl.value) >= prev ? '' : 'none';
+      }
+      nzSel.addEventListener('change', refresh);
+      readEl.addEventListener('input', refresh);
+      refresh();
+    },
+    onSubmit:function(fd){
+      const n = nozzleById(fd.nozzleId);
+      if(!n) fail('Select a nozzle.');
+      const prev = latestMeter(n.id);
+      if(fd.reading === '') fail('Enter the new meter reading.');
+      const reading = num(fd.reading);
+      if(reading < 0) fail('The new reading cannot be negative.');
+      DB.meterResets.push({id:uid('mrst'), nozzleId:n.id, date:fd.date, reading:round2(reading), previous:round2(prev), note:fd.note||'', createdAt:Date.now()});
+      save(); render();
+      toast('Meter reset saved · next reading starts at '+nfMoney.format(reading)+' L','ok');
+    }
+  });
+}
 
 /* ---------------- DELETE / CONFIRM ---------------- */
 function confirmDelete(type, id){
@@ -2860,7 +3014,8 @@ function confirmDelete(type, id){
     rate:{label:'rate change', coll:DB.rateHistory},
     customer:{label:'customer', coll:DB.customers},
     tank:{label:'tank', coll:DB.tanks},
-    nozzle:{label:'nozzle', coll:DB.nozzles}
+    nozzle:{label:'nozzle', coll:DB.nozzles},
+    meterReset:{label:'meter reset', coll:DB.meterResets}
   };
   const m = map[type];
   if(!m) return;
