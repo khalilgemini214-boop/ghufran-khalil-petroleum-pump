@@ -170,7 +170,7 @@ input,select,textarea{font-family:inherit}
 .hero h2{font-size:32px;letter-spacing:-.045em;font-weight:800;margin-top:4px;line-height:1.1}
 .hero .sub{font-size:12.5px;color:#9db0c8;margin-top:5px}
 .hero .pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);padding:5px 10px;border-radius:999px;font-size:11px;color:#dbe6f4;font-weight:600}
-.hero-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:20px;position:relative;z-index:1}
+.hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px;position:relative;z-index:1}
 .hero-stat{background:rgba(255,255,255,.065);border:1px solid rgba(255,255,255,.09);border-radius:13px;padding:10px 12px;min-width:0}
 .hero-stat .l{font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:#93a8c2;font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hero-stat .v{font-size:16.5px;font-weight:800;letter-spacing:-.02em;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -389,6 +389,7 @@ html[data-theme="dark"] #toast-root{bottom:96px}
   .cash-chip b{font-size:12px}
   .hero{padding:19px 18px;border-radius:18px}
   .hero h2{font-size:27px}
+  .hero-stats{grid-template-columns:1fr 1fr}
   .quick-grid{grid-template-columns:repeat(2,1fr)}
   .k3{grid-template-columns:1fr}
   .section-title{margin:20px 0 10px}
@@ -425,7 +426,7 @@ html[data-theme="dark"] #toast-root{bottom:96px}
   .k2{grid-template-columns:1fr}
   .kpi .v{font-size:20px}
   .hero-stats{grid-template-columns:1fr 1fr;gap:8px}
-  .hero-stats .hero-stat:first-child{grid-column:1/-1}
+  .hero-stat .l{white-space:normal;line-height:1.3}
   .form-grid{grid-template-columns:1fr}
   .tb-actions .hide-xs{display:none}
   .card-head{padding:13px 15px}
@@ -1213,6 +1214,20 @@ function pnl(mk){
   const net = gross - exp.total;
   return {mk, revenue, litres:litresSold, cogs, gross, margin: revenue? (gross/revenue)*100:0, expenses:exp.total, expenseList:exp.list, salaries:exp.salaries, net, netMargin: revenue? (net/revenue)*100:0, byProduct};
 }
+function pnlDay(dateStr){
+  const list = DB.sales.filter(s=>s.date===dateStr);
+  const revenue = sum(list, s=>s.amount);
+  const litresSold = sum(list, s=>s.litres);
+  let cogs = 0;
+  DB.products.forEach(p=>{
+    const l = sum(list.filter(s=>s.product===p.id), s=>s.litres);
+    cogs += l * avgCost(p.id, dateStr);
+  });
+  cogs = round2(cogs);
+  const gross = round2(revenue - cogs);
+  const exp = sum(DB.expenses.filter(e=>e.date===dateStr), e=>e.amount) + sum(DB.salaryPayments.filter(p=>p.date===dateStr), p=>p.amount);
+  return {date:dateStr, revenue, litres:litresSold, cogs, gross, expenses:round2(exp), net:round2(gross-exp)};
+}
 function partnerShare(partner, net){ return net * (num(partner.share)/100); }
 function settlement(mk){
   const p = pnl(mk);
@@ -1299,12 +1314,21 @@ function tankBar(productId){
     '<div class="cap"><span class="num">'+litres(st.book)+'</span><small>'+Math.round(p)+'% of '+nfInt.format(st.capacity)+' L</small></div>'+
   '</div>';
 }
+function avgRateLine(productId){
+  const st = stockOf(productId);
+  const sell = currentRate(productId);
+  return '<div class="tiny" style="display:flex;justify-content:space-between;gap:8px;margin-top:6px">'+
+    '<span class="muted">Avg buy <b class="num" style="color:var(--ink)">'+(st.cost?money(st.cost)+'/L':'—')+'</b></span>'+
+    '<span class="muted">Selling <b class="num" style="color:var(--ink)">'+(sell?nfMoney.format(sell)+'/L':'—')+'</b></span>'+
+  '</div>';
+}
 
 /* ==========================================================================
    DASHBOARD
    ========================================================================== */
 function pageDashboard(){
   const today = todaySales();
+  const todayP = pnlDay(todayISO());
   const mk = currentMonth();
   const p = pnl(mk);
   const cash = cashInHand();
@@ -1347,6 +1371,7 @@ function pageDashboard(){
     '</div>'+
     '<div class="hero-stats">'+
       '<div class="hero-stat"><div class="l">Cash collected today</div><div class="v num">'+money0(today.cash)+'</div><div class="s">'+(today.count?today.count+(today.count===1?' meter entry':' meter entries'):'No entries yet')+'</div></div>'+
+      '<div class="hero-stat"><div class="l">Profit today</div><div class="v num">'+money0(todayP.net)+'</div><div class="s">after fuel cost &amp; expenses</div></div>'+
       '<div class="hero-stat"><div class="l">Profit this month</div><div class="v num">'+money0(p.net)+'</div><div class="s">'+(p.netMargin>=0?'+':'')+p.netMargin.toFixed(1)+'% net margin</div></div>'+
       '<div class="hero-stat"><div class="l">Loan outstanding</div><div class="v num">'+money0(loan)+'</div><div class="s">Ghufran → Khalil</div></div>'+
     '</div>'+
@@ -1355,7 +1380,7 @@ function pageDashboard(){
   '<div class="grid k4" style="margin-top:14px">'+
     '<div class="kpi"><div class="bar"></div><div class="l">Month sales</div><div class="v num">'+money0(p.revenue)+'</div><div class="s">'+litres(p.litres)+' sold · '+monthName(mk)+'</div></div>'+
     '<div class="kpi g"><div class="bar"></div><div class="l">Cash in hand</div><div class="v num">'+money0(cash)+'</div><div class="s">Bank '+money0(bankBalance())+'</div></div>'+
-    '<div class="kpi b"><div class="bar"></div><div class="l">Stock value</div><div class="v num">'+moneyShort(stockVal)+'</div><div class="s">'+litres(stP.book+stD.book)+' in tanks</div></div>'+
+    '<div class="kpi b"><div class="bar"></div><div class="l">Stock value</div><div class="v num">'+moneyShort(stockVal)+'</div><div class="s">at avg buy rate · '+litres(stP.book+stD.book)+'</div></div>'+
     '<div class="kpi r"><div class="bar"></div><div class="l">Payables</div><div class="v num">'+moneyShort(payables)+'</div><div class="s">Receivable '+moneyShort(receivables)+'</div></div>'+
   '</div>'+
 
@@ -1376,9 +1401,11 @@ function pageDashboard(){
       '<div class="card-head"><div><h3>Tank levels</h3><p>Book stock right now</p></div><button class="link-btn no-print" data-act="nav" data-page="stock">Details</button></div>'+
       '<div class="card-body" style="display:flex;flex-direction:column;gap:14px">'+
         '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="small strong">Petrol</span><span class="tiny muted">'+litres(stP.book)+' of '+nfInt.format(stP.capacity)+' L</span></div>'+tankBar('petrol')+
-        (stP.book<0?'<div class="tiny down" style="margin-top:4px">Negative stock — add a purchase or check the readings</div>':lowPetrol?'<div class="tiny down" style="margin-top:4px">Low stock — reorder soon</div>':(!stP.purchased&&!stP.sold&&!stP.opening?'<div class="tiny muted" style="margin-top:4px">Add opening stock in Settings or record a purchase</div>':''))+'</div>'+
+        (stP.book<0?'<div class="tiny down" style="margin-top:4px">Negative stock — add a purchase or check the readings</div>':lowPetrol?'<div class="tiny down" style="margin-top:4px">Low stock — reorder soon</div>':(!stP.purchased&&!stP.sold&&!stP.opening?'<div class="tiny muted" style="margin-top:4px">Add opening stock in Settings or record a purchase</div>':''))+
+        avgRateLine('petrol')+'</div>'+
         '<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span class="small strong">Diesel</span><span class="tiny muted">'+litres(stD.book)+' of '+nfInt.format(stD.capacity)+' L</span></div>'+tankBar('diesel')+
-        (stD.book<0?'<div class="tiny down" style="margin-top:4px">Negative stock — add a purchase or check the readings</div>':lowDiesel?'<div class="tiny down" style="margin-top:4px">Low stock — reorder soon</div>':(!stD.purchased&&!stD.sold&&!stD.opening?'<div class="tiny muted" style="margin-top:4px">Add opening stock in Settings or record a purchase</div>':''))+'</div>'+
+        (stD.book<0?'<div class="tiny down" style="margin-top:4px">Negative stock — add a purchase or check the readings</div>':lowDiesel?'<div class="tiny down" style="margin-top:4px">Low stock — reorder soon</div>':(!stD.purchased&&!stD.sold&&!stD.opening?'<div class="tiny muted" style="margin-top:4px">Add opening stock in Settings or record a purchase</div>':''))+
+        avgRateLine('diesel')+'</div>'+
       '</div>'+
     '</div>'+
   '</div>'+
@@ -1914,9 +1941,10 @@ function pageStock(){
           '<div class="stat-line"><span class="k">Purchases</span><span class="v num">'+litres(st.purchased)+'</span></div>'+
           '<div class="stat-line"><span class="k">Sold</span><span class="v num">'+litres(st.sold)+'</span></div>'+
           '<div class="stat-line"><span class="k">Book stock</span><span class="v num">'+litres(st.book)+'</span></div>'+
-          '<div class="stat-line"><span class="k">Avg cost</span><span class="v num">'+money(st.cost)+'/L</span></div>'+
+          '<div class="stat-line"><span class="k">Avg buy rate</span><span class="v num">'+money(st.cost)+'/L</span></div>'+
           '<div class="stat-line"><span class="k">Stock value</span><span class="v num">'+money0(st.value)+'</span></div>'+
         '</div>'+
+        '<div class="tiny muted" style="margin-top:8px">Stock value = book stock × weighted average buy rate (opening stock plus every purchase bill up to today). It is a cost value, not the selling price.</div>'+
         '<div class="divider"></div>'+
         '<div style="display:flex;gap:8px"><button class="btn sm ghost block no-print" data-act="new-purchase">'+icon('plus',14)+' Purchase</button>'+
         '<button class="btn sm ghost block no-print" data-act="new-dip">'+icon('tank',14)+' Dip check</button></div>'+
