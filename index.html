@@ -1574,7 +1574,7 @@ function openSaleForm(id, presetNozzle){
   });
   openModal({
     title: editing ? 'Edit sale reading' : 'New meter reading',
-    subtitle: 'Closing − opening = litres sold. Amount is calculated automatically.',
+    subtitle: 'Closing − opening = litres sold. Amount and profit are calculated automatically.',
     submitLabel: editing ? 'Save changes' : 'Save reading',
     wide:false,
     body:
@@ -1589,6 +1589,8 @@ function openSaleForm(id, presetNozzle){
         '<div class="calc-box full" id="sale-calc">'+
           '<div class="stat-line"><span class="k">Litres sold</span><span class="v num" id="sc-litres">0 L</span></div>'+
           '<div class="stat-line"><span class="k">Sale amount</span><span class="v big num" id="sc-amount">Rs 0</span></div>'+
+          '<div class="stat-line" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:8px"><span class="k">Profit on this reading</span><span class="v num" id="sc-profit">Rs 0</span></div>'+
+          '<div class="tiny muted" id="sc-costhint">Avg buy rate —</div>'+
         '</div>'+
         moneyField('cash','Cash received (Rs)', cashVal, {full:false, hint:'Leave blank = full amount in cash'})+
         inputField('customerName','Customer name (if credit)', {value: editing?editing.customerName||'':''})+
@@ -1604,9 +1606,23 @@ function openSaleForm(id, presetNozzle){
       function recalc(){
         const l = Math.max(0, round2(num(closing.value) - num(opening.value)));
         const amt = round2(l * num(rate.value));
+        const nSel = nozzleById(nozzleSel.value);
+        const cost = avgCost(nSel ? nSel.product : prodId, dateEl.value || todayISO());
+        const profit = round2(l * (num(rate.value) - cost));
         lit.value = l || '';
         $('#sc-litres').textContent = litres(l);
         $('#sc-amount').textContent = money(amt);
+        const profitEl = $('#sc-profit');
+        if(profitEl){
+          profitEl.textContent = (l > 0 && cost > 0) ? money(profit) : '—';
+          profitEl.style.color = (l <= 0 || cost <= 0) ? 'var(--muted)' : profit < 0 ? 'var(--red)' : 'var(--green)';
+        }
+        const hintEl = $('#sc-costhint');
+        if(hintEl){
+          hintEl.textContent = cost > 0
+            ? 'Avg buy '+money(cost)+'/L'+(amt > 0 ? ' · margin '+(profit/amt*100).toFixed(1)+'%' : '')
+            : 'No purchase cost for this product yet — profit appears after a fuel purchase is recorded';
+        }
         if(cashWasFull) cash.value = amt || '';
       }
       function resetForNozzle(){
@@ -1619,8 +1635,8 @@ function openSaleForm(id, presetNozzle){
       closing.addEventListener('input', recalc);
       rate.addEventListener('input', recalc);
       cash.addEventListener('input', function(){ cashWasFull = false; });
-      nozzleSel.addEventListener('change', function(){ if(!editing) resetForNozzle(); });
-      dateEl.addEventListener('change', function(){ if(!editing) resetForNozzle(); });
+      nozzleSel.addEventListener('change', function(){ if(!editing) resetForNozzle(); else recalc(); });
+      dateEl.addEventListener('change', function(){ if(!editing) resetForNozzle(); else recalc(); });
       if(cash.value === ''){
         closing.addEventListener('input', function(){ cash.placeholder = money(round2(parseFloat(lit.value||0)*num(rate.value))); });
       }
