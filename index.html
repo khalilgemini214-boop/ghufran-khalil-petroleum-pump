@@ -750,6 +750,7 @@ try {
 } catch(e){ DB = seedData(); }
 
 function save(){
+  invalidateCostCache();
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
   catch(e){ toast('Could not save data on this device', 'err'); }
 }
@@ -1121,17 +1122,65 @@ function latestMeter(nozzleId, dateStr, excludeId){
   const nz = nozzleById(nozzleId);
   return nz ? num(nz.openingMeter) : 0;
 }
+/* Fuel cost is tracked as a moving weighted average:
+   every purchase is blended with the fuel actually left in the tank, and each
+   sale keeps the average rate that existed when it was recorded. Buying more
+   fuel later therefore never rewrites the profit of an earlier sale. */
+let costCache = {};
+function invalidateCostCache(){ costCache = {}; }
+function costEvents(product){
+  const events = [];
+  let seq = 0;
+  const tanks = DB.tanks.filter(t=>t.product===product);
+  const openL = sum(tanks, t=>num(t.opening));
+  const openV = sum(tanks, t=>num(t.opening) * num(t.openingRate));
+  if(openL) events.push({date:'0000-00-00', ts:-1, order:0, seq:seq++, kind:'in', litres:openL, value:openV});
+  DB.purchases.filter(p=>p.product===product).forEach(p=>{
+    events.push({date:p.date||'0000-00-00', ts:num(p.createdAt), order:1, seq:seq++, kind:'in',
+      litres:num(p.litres), value:num(p.amount), ref:p});
+  });
+  DB.sales.filter(s=>s.product===product).forEach(s=>{
+    events.push({date:s.date||'0000-00-00', ts:num(s.createdAt), order:2, seq:seq++, kind:'out',
+      litres:num(s.litres), ref:s});
+  });
+  events.sort((a,b)=> a.date!==b.date ? (a.date<b.date?-1:1)
+    : a.ts!==b.ts ? a.ts-b.ts
+    : (a.order-b.order || a.seq-b.seq));
+  return events;
+}
+function costState(product, opts){
+  opts = opts || {};
+  const key = product+'|'+(opts.uptoDate||'')+'|'+(opts.excludeSaleId||'');
+  if(costCache[key]) return costCache[key];
+  let qty = 0, value = 0, avg = 0;
+  const saleCost = {};
+  const events = costEvents(product);
+  for(let i=0;i<events.length;i++){
+    const e = events[i];
+    if(opts.uptoDate && e.date > opts.uptoDate) break;
+    if(e.kind === 'in'){
+      qty += e.litres;
+      value += e.value;
+    } else {
+      const unit = avg;
+      if(e.ref) saleCost[e.ref.id] = unit;
+      if(opts.excludeSaleId && e.ref && e.ref.id === opts.excludeSaleId) continue;
+      qty -= e.litres;
+      value -= e.litres * unit;
+      if(Math.abs(qty) < 1e-9){ qty = 0; value = 0; }
+    }
+    if(qty > 1e-9) avg = value / qty;
+  }
+  const state = {qty: round2(qty), value: round2(value), avg, saleCost};
+  costCache[key] = state;
+  return state;
+}
 function avgCost(product, uptoDate){
-  let L=0, V=0;
-  DB.tanks.filter(t=>t.product===product).forEach(t=>{
-    L += num(t.opening);
-    V += num(t.opening) * num(t.openingRate);
-  });
-  DB.purchases.filter(p=>p.product===product && (!uptoDate || p.date<=uptoDate)).forEach(p=>{
-    L += num(p.litres);
-    V += num(p.amount);
-  });
-  return L > 0 ? V/L : 0;
+  return costState(product, uptoDate ? {uptoDate} : undefined).avg;
+}
+function saleUnitCost(product, saleId, uptoDate){
+  const st = costState(product, {uptoDate, excludeSaleId:saleId});
+  return st.saleCost[saleId] != null ? st.saleCost[saleId] : st.avg;
 }
 function stockOf(product){
   const tanks = DB.tanks.filter(t=>t.product===product);
@@ -1140,8 +1189,8 @@ function stockOf(product){
   const purchased = sum(DB.purchases.filter(p=>p.product===product), p=>p.litres);
   const sold = sum(DB.sales.filter(s=>s.product===product), s=>s.litres);
   const book = round2(opening + purchased - sold);
-  const cost = avgCost(product);
-  return {opening, capacity, purchased, sold, book, cost, value:book*cost, tanks};
+  const st = costState(product);
+  return {opening, capacity, purchased, sold, book, cost:st.avg, value:st.value, tanks};
 }
 function totalStockValue(){ return sum(DB.products, p=>stockOf(p.id).value); }
 function cashInHand(){
@@ -1205,7 +1254,8 @@ function pnl(mk){
     const ps = list.filter(s=>s.product===p.id);
     const l = sum(ps, s=>s.litres);
     const rev = sum(ps, s=>s.amount);
-    const cost = l * avgCost(p.id, mk+'-31');
+    const st = costState(p.id, {uptoDate: mk+'-31'});
+    const cost = sum(ps, s=> num(s.litres) * (st.saleCost[s.id] != null ? st.saleCost[s.id] : st.avg));
     byProduct[p.id] = {product:p, litres:l, revenue:rev, cogs:cost, gross:rev-cost, rate:currentRate(p.id)};
     cogs += cost;
   });
@@ -1220,8 +1270,9 @@ function pnlDay(dateStr){
   const litresSold = sum(list, s=>s.litres);
   let cogs = 0;
   DB.products.forEach(p=>{
-    const l = sum(list.filter(s=>s.product===p.id), s=>s.litres);
-    cogs += l * avgCost(p.id, dateStr);
+    const ps = list.filter(s=>s.product===p.id);
+    const st = costState(p.id, {uptoDate: dateStr});
+    cogs += sum(ps, s=> num(s.litres) * (st.saleCost[s.id] != null ? st.saleCost[s.id] : st.avg));
   });
   cogs = round2(cogs);
   const gross = round2(revenue - cogs);
@@ -1607,7 +1658,9 @@ function openSaleForm(id, presetNozzle){
         const l = Math.max(0, round2(num(closing.value) - num(opening.value)));
         const amt = round2(l * num(rate.value));
         const nSel = nozzleById(nozzleSel.value);
-        const cost = avgCost(nSel ? nSel.product : prodId, dateEl.value || todayISO());
+        const pid = nSel ? nSel.product : prodId;
+        const dstr = dateEl.value || todayISO();
+        const cost = editing ? saleUnitCost(pid, editing.id, dstr) : costState(pid, {uptoDate:dstr}).avg;
         const profit = round2(l * (num(rate.value) - cost));
         lit.value = l || '';
         $('#sc-litres').textContent = litres(l);
@@ -1960,7 +2013,7 @@ function pageStock(){
           '<div class="stat-line"><span class="k">Avg buy rate</span><span class="v num">'+money(st.cost)+'/L</span></div>'+
           '<div class="stat-line"><span class="k">Stock value</span><span class="v num">'+money0(st.value)+'</span></div>'+
         '</div>'+
-        '<div class="tiny muted" style="margin-top:8px">Stock value = book stock × weighted average buy rate (opening stock plus every purchase bill up to today). It is a cost value, not the selling price.</div>'+
+        '<div class="tiny muted" style="margin-top:8px">Stock value = fuel left in the tank × its moving average buy rate. Each purchase is blended only with the fuel still in stock (e.g. 50 L at 258 + 600 L at 266 = 265.38/L), and sales already recorded keep the rate they had. It is a cost value, not the selling price.</div>'+
         '<div class="divider"></div>'+
         '<div style="display:flex;gap:8px"><button class="btn sm ghost block no-print" data-act="new-purchase">'+icon('plus',14)+' Purchase</button>'+
         '<button class="btn sm ghost block no-print" data-act="new-dip">'+icon('tank',14)+' Dip check</button></div>'+
@@ -2896,7 +2949,7 @@ function pageSettings(){
   '<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>How the hisab works</h3><p>Quick reference</p></div></div>'+
     '<div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'+
       '<div class="small muted"><b style="color:var(--ink)">Sales</b><br>Closing meter − opening meter = litres. Litres × rate = sale amount. Cash received is added to cash; any balance becomes customer credit.</div>'+
-      '<div class="small muted"><b style="color:var(--ink)">Profit</b><br>Sales − cost of fuel sold (weighted average purchase cost) − expenses − salaries = net profit. Your 50/50 split is shown under Partners → Settlement.</div>'+
+      '<div class="small muted"><b style="color:var(--ink)">Profit</b><br>Sales − cost of the fuel sold (moving average buy rate at the time of each reading) − expenses − salaries = net profit. A later purchase never changes the profit of a reading already recorded. Your 50/50 split is shown under Partners → Settlement.</div>'+
       '<div class="small muted"><b style="color:var(--ink)">Loan</b><br>Khalil funds the investment, so Ghufran\'s share of it is his loan. The loan grows automatically when you add a shared investment and reduces with each repayment. At zero, Ghufran receives his full profit share.</div>'+
       '<div class="small muted"><b style="color:var(--ink)">Drawings</b><br>Cash a partner takes is recorded as a drawing. It reduces his payable share and the business cash, but never reduces net profit.</div>'+
     '</div></div>'+
