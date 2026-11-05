@@ -1059,6 +1059,7 @@ document.addEventListener('click', function(e){
     case 'export-sales': exportSalesCSV(); break;
     case 'export-expenses': exportExpensesCSV(); break;
     case 'export-purchases': exportPurchasesCSV(); break;
+    case 'export-daily': exportDailyCSV(); break;
     case 'export-full': exportFullCSV(); break;
     case 'restore': pickRestoreFile(); break;
     case 'reset-all': confirmReset(); break;
@@ -1333,6 +1334,36 @@ function last30Series(mk){
   const out = days.map(d=>({label:fmtDate(d), short:String(parseInt(d.slice(8),10)), value:sum(DB.sales.filter(s=>s.date===d),s=>s.amount)}));
   const active = out.filter(x=>x.value>0);
   return active.length > 16 ? out : out.slice(Math.max(0,out.length-1-15));
+}
+function dailyReport(mk){
+  const sales = salesInMonth(mk);
+  const costBySale = {};
+  DB.products.forEach(p=>{
+    const st = costState(p.id, {uptoDate: mk+'-31'});
+    sales.filter(s=>s.product===p.id).forEach(s=>{
+      costBySale[s.id] = num(s.litres) * (st.saleCost[s.id] != null ? st.saleCost[s.id] : st.avg);
+    });
+  });
+  const expByDay = {}, salByDay = {}, cashIn = {}, cashOut = {};
+  DB.expenses.filter(e=>inMonth(e.date,mk)).forEach(e=>{ expByDay[e.date] = (expByDay[e.date]||0) + num(e.amount); });
+  DB.salaryPayments.filter(p=>inMonth(p.date,mk)).forEach(p=>{ salByDay[p.date] = (salByDay[p.date]||0) + num(p.amount); });
+  cashLedger().filter(r=>inMonth(r.date,mk)).forEach(r=>{
+    if(num(r.inAmt)) cashIn[r.date] = (cashIn[r.date]||0) + num(r.inAmt);
+    if(num(r.outAmt)) cashOut[r.date] = (cashOut[r.date]||0) + num(r.outAmt);
+  });
+  return fillMonthDays(mk).map(d=>{
+    const ds = sales.filter(s=>s.date===d);
+    const litres = sum(ds,s=>s.litres);
+    const revenue = sum(ds,s=>s.amount);
+    const cogs = round2(sum(ds,s=>costBySale[s.id]||0));
+    const expenses = round2((expByDay[d]||0) + (salByDay[d]||0));
+    const cin = round2(cashIn[d]||0), cout = round2(cashOut[d]||0);
+    return {
+      date:d, count:ds.length, litres:round2(litres), revenue:round2(revenue), cogs,
+      expenses, profit:round2(revenue - cogs - expenses),
+      cashIn:cin, cashOut:cout, cash:round2(cin - cout)
+    };
+  }).filter(r=> r.count || r.expenses || r.cashIn || r.cashOut);
 }
 function allActivity(){
   const rows = [];
@@ -2782,6 +2813,12 @@ function pageReports(){
   const p = pnl(mk);
   const st = settlement(mk);
   const days = last30Series(mk);
+  const daily = dailyReport(mk).sort((a,b)=> a.date<b.date ? 1 : -1);
+  const dTotals = {
+    litres:sum(daily,r=>r.litres), revenue:sum(daily,r=>r.revenue), cogs:sum(daily,r=>r.cogs),
+    expenses:sum(daily,r=>r.expenses), profit:sum(daily,r=>r.profit),
+    cashIn:sum(daily,r=>r.cashIn), cashOut:sum(daily,r=>r.cashOut)
+  };
   const cashRows = cashLedger().filter(r=>r.date.slice(0,7)===mk);
   const cashIn = sum(cashRows,r=>r.inAmt), cashOut = sum(cashRows,r=>r.outAmt);
   const expCats = {};
@@ -2833,6 +2870,26 @@ function pageReports(){
   '</div>'+
   '<div class="card" style="margin-top:18px"><div class="card-head"><div><h3>Daily sales · '+monthName(mk)+'</h3><p>Fuel sales value per day</p></div><span class="badge amber">'+money0(sum(days,d=>d.value))+'</span></div>'+
     '<div class="card-body">'+chartBars(days,{height:160})+'</div></div>'+
+  '<div class="card" style="margin-top:18px">'+
+    '<div class="card-head" style="flex-wrap:wrap"><div><h3>Daily summary · '+monthName(mk)+'</h3><p>Sales, litres, profit and cash for every active day</p></div>'+
+    '<button class="btn sm ghost no-print" data-act="export-daily">'+icon('download',14)+' CSV</button></div>'+
+    '<div class="card-body">'+
+      (daily.length ? '<div class="table-wrap"><table class="tbl"><thead><tr><th>Date</th><th class="r">Litres</th><th class="r">Sales</th><th class="r">Fuel cost</th><th class="r">Expenses</th><th class="r">Profit</th><th class="r">Cash in</th><th class="r">Cash out</th></tr></thead><tbody>'+
+        daily.map(r=>'<tr>'+
+          '<td><b>'+fmtDateShort(r.date)+'</b> <span class="tiny muted">'+dayName(r.date)+'</span></td>'+
+          '<td class="r num">'+nfMoney.format(r.litres)+'</td>'+
+          '<td class="r num">'+money0(r.revenue)+'</td>'+
+          '<td class="r num">'+money0(r.cogs)+'</td>'+
+          '<td class="r num">'+money0(r.expenses)+'</td>'+
+          '<td class="r num"><b class="'+(r.profit>=0?'up':'down')+'">'+money0(r.profit)+'</b></td>'+
+          '<td class="r num">'+(r.cashIn?money0(r.cashIn):'<span class="muted">—</span>')+'</td>'+
+          '<td class="r num">'+(r.cashOut?money0(r.cashOut):'<span class="muted">—</span>')+'</td>'+
+        '</tr>').join('')+
+      '</tbody><tfoot><tr><td>Month total</td><td class="r num">'+nfMoney.format(dTotals.litres)+'</td><td class="r num">'+money0(dTotals.revenue)+'</td><td class="r num">'+money0(dTotals.cogs)+'</td><td class="r num">'+money0(dTotals.expenses)+'</td><td class="r num">'+money0(dTotals.profit)+'</td><td class="r num">'+money0(dTotals.cashIn)+'</td><td class="r num">'+money0(dTotals.cashOut)+'</td></tr></tfoot></table></div>'
+      : emptyState('calendar','No activity this month','Sales, expenses and cash movements will appear here as they are recorded.',''))+
+      '<div class="tiny muted" style="margin-top:10px">Profit = sales − fuel cost − expenses and salaries for that day. Cash in/out is actual money movement (sale cash, purchases, bills, drawings, bank transfers), so it is not the same as profit.</div>'+
+    '</div>'+
+  '</div>'+
   '<div class="grid k2 report-tables" style="margin-top:18px">'+
     '<div class="card"><div class="card-head"><div><h3>Partner settlement</h3><p>'+monthName(mk)+'</p></div></div>'+
       '<div class="card-body" style="padding-top:4px"><div class="table-wrap"><table class="tbl"><thead><tr><th>Partner</th><th class="r">Share</th><th class="r">Profit</th><th class="r">Drawings</th><th class="r">Payable</th></tr></thead><tbody>'+
@@ -3261,6 +3318,14 @@ function exportExpensesCSV(){
   DB.expenses.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(e=>rows.push([e.date,e.category,e.description||'',e.amount,e.paidFrom]));
   DB.salaryPayments.slice().sort((a,b)=>a.date<b.date?-1:1).forEach(p=>rows.push([p.date,'Salary', (DB.staff.find(s=>s.id===p.staffId)||{name:''}).name, p.amount, p.method]));
   csvExport('expenses-'+todayISO()+'.csv', rows);
+}
+function exportDailyCSV(){
+  const mk = UI.reportMonth;
+  const rows = [['Date','Day','Litres','Sales','Fuel cost','Expenses','Profit','Cash in','Cash out','Net cash']];
+  dailyReport(mk).sort((a,b)=> a.date<b.date?-1:1).forEach(d=>{
+    rows.push([d.date, dayName(d.date), round2(d.litres), round2(d.revenue), round2(d.cogs), round2(d.expenses), round2(d.profit), round2(d.cashIn), round2(d.cashOut), round2(d.cash)]);
+  });
+  csvExport('daily-summary-'+mk+'.csv', rows);
 }
 function exportFullCSV(){
   const rows=[['Ghufran Khalil Petroleum Pump — full export'],['Generated',new Date().toLocaleString('en-GB')],[]];
