@@ -359,6 +359,37 @@ html[data-theme="dark"] #toast-root{bottom:96px}
 .fab:active{transform:scale(.97)}
 .fab span{white-space:nowrap}
 
+/* ============ ACCOUNTS & LEDGER ============ */
+.acc-sums{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.acc-sums .as{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow);min-width:0}
+.acc-sums .as span{display:block;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acc-sums .as b{display:block;font-size:16px;font-weight:850;margin-top:3px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acct-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
+.acct-card{cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:12px;min-width:0}
+.acct-card:hover{transform:translateY(-1px);border-color:#cdd6e1}
+.acct-card .ac-top{display:flex;align-items:center;gap:11px;min-width:0}
+.acct-card .ac-main{flex:1;min-width:0}
+.acct-card .ac-name{font-size:14px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acct-card .ac-sub{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acct-card .ac-bottom{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;border-top:1px dashed var(--line);padding-top:10px}
+.acct-card .ac-bal{font-size:20px;font-weight:850;letter-spacing:-.03em;line-height:1.15;overflow-wrap:anywhere}
+.acct-card .ac-bal.pos{color:var(--green)}
+.acct-card .ac-bal.neg{color:var(--red)}
+.acct-card .ac-last{font-size:10.5px;color:var(--muted);text-align:right;line-height:1.35;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acc-searchrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.acc-searchrow .search{flex:1;min-width:180px}
+.acc-searchrow .search input{height:40px}
+.ledger-head{display:flex;align-items:center;gap:9px;min-width:0}
+.ledger-head .lh-main{flex:1;min-width:0}
+.ledger-actions{display:none}
+.txb{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:12px;padding:13px 18px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:var(--shadow);transition:.15s}
+.txb:active{transform:scale(.98)}
+.txb small{font-size:11px;font-weight:650;opacity:.7}
+.txb.cr{background:var(--green-soft);color:var(--green)}
+.txb.db{background:var(--red-soft);color:var(--red)}
+body.ledger-open .view{padding-bottom:120px}
+.modal-foot .btn.red{flex:0 0 auto}
+
 /* ============ RESPONSIVE ============ */
 @media (max-width:1100px){
   .k4{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -406,6 +437,17 @@ html[data-theme="dark"] #toast-root{bottom:96px}
   .fab{display:inline-flex}
   .topbar-add{display:none}
   .page-actions .btn:not(.ghost){display:none}
+  /* Ledger debit / credit bar */
+  .ledger-actions{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:48;gap:10px;
+    padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);
+    box-shadow:0 -10px 28px rgba(9,20,38,.12)}
+  .ledger-actions .txb{flex:1}
+  body.ledger-open .bottomnav{display:none}
+}
+@media (min-width:981px){
+  .ledger-actions{display:flex;position:fixed;left:var(--sidebar);right:0;bottom:0;z-index:48;justify-content:flex-end;gap:10px;
+    padding:12px 26px;background:color-mix(in srgb,var(--bg) 94%,transparent);border-top:1px solid var(--line);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 }
 @media (max-width:640px){
   /* Stacked record cards (purchases, suppliers) so long text never collides */
@@ -421,6 +463,8 @@ html[data-theme="dark"] #toast-root{bottom:96px}
 @media (max-width:380px){
   .nozzle-card .nc-unit{white-space:normal}
   .fab{padding:12px 15px;font-size:12.5px}
+  .acc-sums .as{padding:9px 10px}
+  .acc-sums .as b{font-size:13.5px}
 }
 @media (max-width:560px){
   .k2{grid-template-columns:1fr}
@@ -515,6 +559,7 @@ const ICONS = {
   fuel:'<path d="M4 21h10"/><path d="M6 21V6a3 3 0 0 1 3-3h1a3 3 0 0 1 3 3v15"/><path d="M6 11h7"/><path d="M16 8h2.5a1.5 1.5 0 0 1 1.5 1.5V16a1.5 1.5 0 0 0 3 0v-5l-2-3"/>',
   close:'<path d="M18 6 6 18M6 6l12 12"/>',
   chevronR:'<path d="m9 5 7 7-7 7"/>',
+  arrowLeft:'<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
   chevronD:'<path d="m6 9 6 6 6-6"/>',
   refresh:'<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>'
 };
@@ -711,6 +756,10 @@ function seedData(){
     customerPayments:[],
     dips:[],
     meterResets:[],
+    accounts:[
+      {id:'acc_cash', name:'Cash in Hand', type:'Cash', phone:'', note:'Default cash account', createdAt:Date.now()}
+    ],
+    accountTx:[],
     cashEntries:[]
   };
 }
@@ -720,7 +769,7 @@ function migrate(data){
   const out = Object.assign({}, base, data);
   out.meta = Object.assign({}, base.meta, data.meta||{});
   out.settings = Object.assign({}, base.settings, data.settings||{});
-  ['partners','products','tanks','nozzles','sales','purchases','suppliers','supplierPayments','expenses','staff','salaryPayments','investments','loans','loanRepayments','drawings','customers','customerPayments','dips','meterResets','cashEntries','rateHistory'].forEach(k=>{
+  ['partners','products','tanks','nozzles','sales','purchases','suppliers','supplierPayments','expenses','staff','salaryPayments','investments','loans','loanRepayments','drawings','customers','customerPayments','dips','meterResets','accounts','accountTx','cashEntries','rateHistory'].forEach(k=>{
     if(!Array.isArray(out[k])) out[k] = base[k];
   });
   out.rates = Object.assign({}, base.rates, data.rates||{});
@@ -784,6 +833,10 @@ const UI = {
   settleMonth: currentMonth(),
   reportMonth: currentMonth(),
   stockDipTank:'all',
+  accId:null,
+  accSearch:'',
+  accType:'all',
+  accTxSearch:'',
   moreOpen:false
 };
 const PAGES = [
@@ -795,6 +848,7 @@ const PAGES = [
   {id:'staff', label:'Staff', icon:'users'},
   {id:'partners', label:'Partners', icon:'handshake'},
   {id:'cash', label:'Cash Book', icon:'wallet'},
+  {id:'accounts', label:'Accounts', icon:'bank'},
   {id:'reports', label:'Reports', icon:'chart'},
   {id:'settings', label:'Settings', icon:'gear'}
 ];
@@ -807,7 +861,8 @@ const PAGE_FAB = {
   expenses:{act:'new-expense', label:'New expense'},
   staff:{act:'new-staff', label:'Add staff'},
   partners:{act:'new-investment', label:'Add investment'},
-  cash:{act:'new-cash', label:'Cash entry'}
+  cash:{act:'new-cash', label:'Cash entry'},
+  accounts:{act:'new-account', label:'New account'}
 };
 
 /* ---------------- MODAL ---------------- */
@@ -816,6 +871,7 @@ function openModal(opts){
   const root = $('#modal-root');
   const foot = opts.footer === false ? '' :
     '<div class="modal-foot">'+
+      (opts.footLeft||'')+
       '<button type="button" class="btn ghost" data-act="close-modal">Cancel</button>'+
       '<button type="submit" class="btn">'+esc(opts.submitLabel||'Save')+'</button>'+
     '</div>';
@@ -913,14 +969,23 @@ function shellHTML(page){
       '</header>'+
       '<main class="view" id="view">'+renderPage(page)+'</main>'+
       fabHTML(page)+
+      ledgerActionsHTML(page)+
     '</div>'+
   '</div>';
   // bottom nav is rendered separately
 }
 function fabHTML(page){
+  if(page === 'accounts' && UI.accId) return '';
   const f = PAGE_FAB[page];
   if(!f) return '';
   return '<button class="fab no-print" data-act="'+f.act+'" aria-label="'+attr(f.label)+'">'+icon('plus',19)+'<span>'+esc(f.label)+'</span></button>';
+}
+function ledgerActionsHTML(page){
+  if(page !== 'accounts' || !UI.accId) return '';
+  return '<div class="ledger-actions no-print">'+
+    '<button class="txb cr" data-act="new-account-tx" data-v="credit">'+icon('arrowDown',18)+'<span>Credit</span><small>(add)</small></button>'+
+    '<button class="txb db" data-act="new-account-tx" data-v="debit">'+icon('arrowUp',18)+'<span>Debit</span><small>(reduce)</small></button>'+
+  '</div>';
 }
 function bottomNavHTML(){
   const page = UI.page;
@@ -934,6 +999,8 @@ function bottomNavHTML(){
 }
 function render(){
   applyTheme();
+  const ledgerOpen = UI.page === 'accounts' && !!(UI.accId && accountById(UI.accId));
+  document.body.classList.toggle('ledger-open', ledgerOpen);
   $('#app').innerHTML = shellHTML(UI.page);
   $('#bottomnav').innerHTML = bottomNavHTML();
   const view = $('#view');
@@ -947,11 +1014,13 @@ function afterRender(){
   if(UI.page === 'dashboard') mountDashboard();
   if(UI.page === 'sales') mountSales();
   if(UI.page === 'purchases') mountPurchases();
+  if(UI.page === 'accounts') mountAccounts();
   if(UI.page === 'reports') mountReports();
 }
 function nav(page){
   if(!PAGES.some(p=>p.id===page)) return;
   UI.page = page;
+  UI.accId = null;
   UI.moreOpen = false;
   closeSheet();
   render();
@@ -963,7 +1032,7 @@ function openMoreSheet(){
   sheet.innerHTML = '<div class="sheet-grip"></div>'+
     '<div style="display:flex;align-items:center;justify-content:space-between;padding:0 4px 12px"><div style="font-size:14px;font-weight:800">More modules</div><button class="mini-btn" data-act="close-sheet">'+icon('x',16)+'</button></div>'+
     '<div class="sheet-grid">'+
-      rest.map(p=>'<button class="sheet-item '+(UI.page===p.id?'active':'')+'" data-act="nav" data-page="'+p.id+'"><span class="qi '+(p.id==='stock'?'blue':p.id==='partners'?'violet':p.id==='cash'?'green':p.id==='reports'?'amber':'')+'">'+icon(p.icon,18)+'</span><span>'+esc(p.label)+'</span></button>').join('')+
+      rest.map(p=>'<button class="sheet-item '+(UI.page===p.id?'active':'')+'" data-act="nav" data-page="'+p.id+'"><span class="qi '+(p.id==='stock'?'blue':p.id==='partners'?'violet':p.id==='cash'?'green':p.id==='accounts'?'green':p.id==='reports'?'amber':'')+'">'+icon(p.icon,18)+'</span><span>'+esc(p.label)+'</span></button>').join('')+
     '</div>'+
     '<div style="display:flex;gap:8px;margin-top:10px">'+
       '<button class="btn ghost block sm" data-act="backup-now">'+icon('download',15)+' Backup</button>'+
@@ -990,6 +1059,7 @@ function renderPage(id){
     case 'staff': return pageStaff();
     case 'partners': return pagePartners();
     case 'cash': return pageCash();
+    case 'accounts': return pageAccounts();
     case 'reports': return pageReports();
     case 'settings': return pageSettings();
     default: return pageDashboard();
@@ -1043,6 +1113,15 @@ document.addEventListener('click', function(e){
     case 'del-drawing': confirmDelete('drawing', id); break;
     case 'new-cash': openCashForm(); break;
     case 'del-cash': confirmDelete('cashEntry', id); break;
+    case 'new-account': openAccountForm(); break;
+    case 'edit-account': openAccountForm(id); break;
+    case 'del-account': confirmDeleteAccount(id); break;
+    case 'open-ledger': UI.accId = id; UI.accTxSearch = ''; render(); window.scrollTo({top:0,behavior:'instant'}); break;
+    case 'close-ledger': UI.accId = null; UI.accTxSearch = ''; render(); window.scrollTo({top:0,behavior:'instant'}); break;
+    case 'acc-type': UI.accType = el.getAttribute('data-v'); render(); break;
+    case 'new-account-tx': openAccountTxForm(el.getAttribute('data-v')); break;
+    case 'edit-account-tx': openAccountTxForm(null, id); break;
+    case 'del-account-tx': confirmDeleteAccountTx(id); break;
     case 'new-dip': openDipForm(); break;
     case 'del-dip': confirmDelete('dip', id); break;
     case 'update-rate': openRateForm(); break;
@@ -2801,6 +2880,309 @@ function openCashForm(){
       if(amt<=0) fail('Enter a valid amount.');
       DB.cashEntries.push({id:uid('cash'), date:fd.date, type:fd.type, label:(fd.label||'').trim()|| (fd.type==='in'?'Cash in':fd.type==='out'?'Cash out':fd.type==='deposit'?'Bank deposit':'Bank withdrawal'), amount:round2(amt), note:fd.note||'', createdAt:Date.now()});
       commit();
+    }
+  });
+}
+
+/* ==========================================================================
+   ACCOUNTS & LEDGERS
+   ========================================================================== */
+const ACCOUNT_TYPES = ['Customer','Supplier','Bank','Cash','Expense'];
+const ACCOUNT_META = {
+  Customer:{tone:'amber', icon:'users'},
+  Supplier:{tone:'violet', icon:'truck'},
+  Bank:{tone:'blue', icon:'bank'},
+  Cash:{tone:'green', icon:'wallet'},
+  Expense:{tone:'red', icon:'receipt'}
+};
+function accountMeta(type){ return ACCOUNT_META[type] || ACCOUNT_META.Customer; }
+function accountById(id){ return DB.accounts.find(a=>a.id===id); }
+function accountTxList(accountId){
+  return DB.accountTx.filter(t=>t.accountId===accountId)
+    .sort((a,b)=> a.date===b.date ? (a.createdAt||0)-(b.createdAt||0) : (a.date<b.date?-1:1));
+}
+function accountStats(accountId){
+  let credit = 0, debit = 0;
+  accountTxList(accountId).forEach(t=>{
+    if(t.type==='credit') credit += num(t.amount);
+    else debit += num(t.amount);
+  });
+  return {credit:round2(credit), debit:round2(debit), balance:round2(credit-debit)};
+}
+function accountsTotals(){
+  let credit = 0, debit = 0;
+  DB.accounts.forEach(a=>{
+    const b = accountStats(a.id).balance;
+    if(b > 0) credit += b;
+    else if(b < 0) debit += -b;
+  });
+  return {credit:round2(credit), debit:round2(debit), balance:round2(credit-debit)};
+}
+function accountLastActivity(a){
+  const list = accountTxList(a.id);
+  if(list.length){
+    const t = list[list.length-1];
+    return (t.createdAt||0) || (t.date ? new Date(t.date+'T00:00:00').getTime() : 0);
+  }
+  return a.createdAt || 0;
+}
+function accountLastText(a){
+  const list = accountTxList(a.id);
+  if(!list.length) return 'No entries';
+  const t = list[list.length-1];
+  return fmtDate(t.date) + (t.note ? ' · '+t.note : '');
+}
+function accountsFiltered(){
+  const q = UI.accSearch.toLowerCase();
+  return DB.accounts.filter(a=>{
+    if(UI.accType !== 'all' && a.type !== UI.accType) return false;
+    if(q){
+      const hay = [a.name, a.phone, a.note, a.type].join(' ').toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  }).sort((a,b)=>{
+    const ca = a.type==='Cash'?1:0, cb = b.type==='Cash'?1:0;
+    if(ca !== cb) return cb - ca;
+    return accountLastActivity(b) - accountLastActivity(a);
+  });
+}
+function accountCardsHTML(){
+  const list = accountsFiltered();
+  if(!list.length) return emptyState('bank', DB.accounts.length?'No matching accounts':'No accounts yet', DB.accounts.length?'Try a different search or type.':'Add an account to start its ledger.','');
+  return '<div class="acct-grid">'+list.map(a=>{
+    const st = accountStats(a.id);
+    const meta = accountMeta(a.type);
+    const balCls = st.balance > 0 ? 'pos' : st.balance < 0 ? 'neg' : '';
+    return '<div class="card card-pad acct-card" data-act="open-ledger" data-id="'+a.id+'">'+
+      '<div class="ac-top">'+
+        '<div class="partner-avatar" style="width:40px;height:40px;border-radius:12px;background:var(--'+meta.tone+'-soft);color:var(--'+meta.tone+')">'+icon(meta.icon,18)+'</div>'+
+        '<div class="ac-main"><div class="ac-name">'+esc(a.name)+'</div>'+
+        '<div class="ac-sub">'+esc(a.phone || a.note || 'No phone / reference')+'</div></div>'+
+        '<span class="badge '+meta.tone+'">'+esc(a.type)+'</span>'+
+      '</div>'+
+      '<div class="ac-bottom">'+
+        '<div><div class="tiny muted">Balance</div><div class="ac-bal '+balCls+' num">'+money(st.balance)+'</div></div>'+
+        '<div class="ac-last">'+esc(accountLastText(a))+'</div>'+
+      '</div>'+
+    '</div>';
+  }).join('')+'</div>';
+}
+function pageAccounts(){
+  if(UI.accId){
+    const acc = accountById(UI.accId);
+    if(acc) return pageAccountLedger(acc);
+    UI.accId = null;
+  }
+  const totals = accountsTotals();
+  return ''+
+  '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">'+
+    '<div class="tb-sub" style="font-size:12px">Customer, supplier, bank, cash and expense ledgers</div>'+
+    pageActions('<button class="btn" data-act="new-account">'+icon('plus',16)+' New account</button>')+
+  '</div>'+
+  '<div class="acc-sums" style="margin-bottom:14px">'+
+    '<div class="as"><span>Total credit</span><b class="num" style="color:var(--green)">'+money0(totals.credit)+'</b></div>'+
+    '<div class="as"><span>Total debit</span><b class="num" style="color:var(--red)">'+money0(totals.debit)+'</b></div>'+
+    '<div class="as"><span>Net balance</span><b class="num">'+money0(totals.balance)+'</b></div>'+
+  '</div>'+
+  '<div class="acc-searchrow no-print">'+
+    '<div class="search" style="flex:1">'+icon('search',15)+'<input type="text" id="acc-search" placeholder="Search name, phone or note…" value="'+attr(UI.accSearch)+'" /></div>'+
+  '</div>'+
+  '<div class="no-print" style="margin-bottom:12px;display:flex;gap:6px;flex-wrap:wrap">'+
+    '<button class="badge '+(UI.accType==='all'?'amber':'gray')+'" style="border:0;cursor:pointer;padding:6px 10px" data-act="acc-type" data-v="all">All</button>'+
+    ACCOUNT_TYPES.map(t=>'<button class="badge '+(UI.accType===t?'amber':'gray')+'" style="border:0;cursor:pointer;padding:6px 10px" data-act="acc-type" data-v="'+attr(t)+'">'+esc(t)+'</button>').join('')+
+  '</div>'+
+  '<div id="acc-grid">'+accountCardsHTML()+'</div>'+
+  '';
+}
+function pageAccountLedger(a){
+  const st = accountStats(a.id);
+  const meta = accountMeta(a.type);
+  const count = accountTxList(a.id).length;
+  const balColor = st.balance > 0 ? 'var(--green)' : st.balance < 0 ? 'var(--red)' : 'var(--ink)';
+  return ''+
+  '<div class="card" style="margin-bottom:14px"><div class="card-body" style="display:flex;flex-direction:column;gap:12px">'+
+    '<div class="ledger-head">'+
+      '<button class="icon-btn" data-act="close-ledger" aria-label="Back to accounts">'+icon('arrowLeft',18)+'</button>'+
+      '<div class="lh-main"><div style="font-size:16px;font-weight:850;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(a.name)+'</div>'+
+        '<div class="row-sub" style="margin-top:2px"><span class="badge '+meta.tone+'">'+esc(a.type)+'</span>'+(a.phone?'<span>· '+esc(a.phone)+'</span>':'')+'<span>· '+count+(count===1?' transaction':' transactions')+'</span></div></div>'+
+      '<button class="mini-btn no-print" data-act="edit-account" data-id="'+a.id+'" aria-label="Edit account">'+icon('edit',14)+'</button>'+
+      '<button class="mini-btn danger no-print" data-act="del-account" data-id="'+a.id+'" aria-label="Delete account">'+icon('trash',14)+'</button>'+
+    '</div>'+
+    '<div class="acc-sums">'+
+      '<div class="as"><span>Total credit</span><b class="num" style="color:var(--green)">'+money0(st.credit)+'</b></div>'+
+      '<div class="as"><span>Total debit</span><b class="num" style="color:var(--red)">'+money0(st.debit)+'</b></div>'+
+      '<div class="as"><span>Balance</span><b class="num" style="color:'+balColor+'">'+money0(st.balance)+'</b></div>'+
+    '</div>'+
+    '<div class="tiny muted">Credit adds to the ledger balance; debit reduces it. Tap any transaction to edit or delete it.</div>'+
+  '</div></div>'+
+  '<div class="card">'+
+    '<div class="card-head" style="flex-wrap:wrap"><div><h3>Ledger</h3><p>Every credit and debit in this account</p></div>'+
+      '<div class="search no-print" style="min-width:160px">'+icon('search',15)+'<input type="text" id="acc-tx-search" placeholder="Search description…" value="'+attr(UI.accTxSearch)+'" /></div>'+
+    '</div>'+
+    '<div class="card-body" id="acc-tx-list">'+accountTxRowsHTML(a.id)+'</div>'+
+  '</div>'+
+  '';
+}
+function accountTxRowsHTML(accountId){
+  const all = accountTxList(accountId);
+  let run = 0;
+  const bal = {};
+  all.forEach(t=>{
+    run += (t.type==='credit'?1:-1) * num(t.amount);
+    bal[t.id] = round2(run);
+  });
+  const q = UI.accTxSearch.toLowerCase();
+  const list = all.slice().reverse().filter(t=>{
+    if(!q) return true;
+    return [t.note, t.type, t.date, numFmt(t.amount)].join(' ').toLowerCase().indexOf(q) !== -1;
+  });
+  if(!list.length) return emptyState('bank', q?'No matching transactions':'No transactions yet', q?'Try a different description.':'Use the Credit or Debit buttons below to add the first entry.','');
+  return '<div class="rows">'+list.map(t=>{
+    const credit = t.type === 'credit';
+    return '<div class="row" data-act="edit-account-tx" data-id="'+t.id+'" style="cursor:pointer">'+
+      '<div class="partner-avatar '+(credit?'a':'b')+'" style="width:34px;height:34px;border-radius:10px">'+icon(credit?'arrowDown':'arrowUp',16)+'</div>'+
+      '<div class="row-main"><div class="row-title">'+esc(t.note || (credit?'Credit':'Debit'))+'</div>'+
+        '<div class="row-sub"><span>'+fmtDate(t.date)+'</span><span>·</span><span>'+esc(credit?'Credit':'Debit')+'</span></div></div>'+
+      '<div class="row-right"><div class="row-amt '+(credit?'pos':'neg')+' num">'+(credit?'+':'−')+money(Math.abs(num(t.amount)))+'</div><div class="tiny muted num">Bal '+money0(bal[t.id]||0)+'</div></div>'+
+      '<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-account-tx" data-id="'+t.id+'" aria-label="Delete transaction">'+icon('trash',14)+'</button></div>'+
+    '</div>';
+  }).join('')+'</div>';
+}
+function renderAccountsGridOnly(){
+  const box = $('#acc-grid');
+  if(box) box.innerHTML = accountCardsHTML();
+}
+function mountAccounts(){
+  const search = $('#acc-search');
+  if(search){
+    let t;
+    search.addEventListener('input', function(){
+      clearTimeout(t);
+      t = setTimeout(function(){ UI.accSearch = search.value; renderAccountsGridOnly(); }, 180);
+    });
+    search.addEventListener('keydown', function(e){
+      if(e.key === 'Escape'){ search.value = ''; UI.accSearch = ''; renderAccountsGridOnly(); }
+    });
+  }
+  const txSearch = $('#acc-tx-search');
+  if(txSearch){
+    let t;
+    txSearch.addEventListener('input', function(){
+      clearTimeout(t);
+      t = setTimeout(function(){
+        UI.accTxSearch = txSearch.value;
+        const box = $('#acc-tx-list');
+        if(box) box.innerHTML = accountTxRowsHTML(UI.accId);
+      }, 180);
+    });
+    txSearch.addEventListener('keydown', function(e){
+      if(e.key === 'Escape'){
+        txSearch.value = ''; UI.accTxSearch = '';
+        const box = $('#acc-tx-list');
+        if(box) box.innerHTML = accountTxRowsHTML(UI.accId);
+      }
+    });
+  }
+}
+function openAccountForm(id){
+  const a = id ? accountById(id) : null;
+  openModal({
+    title: a ? 'Edit account' : 'New account',
+    subtitle: 'Customer, supplier, bank, cash or expense ledger.',
+    submitLabel: a ? 'Save changes' : 'Add account',
+    body:'<div class="form-grid">'+
+      inputField('name','Account name',{value:a?a.name:'',required:true,full:true})+
+      selectField('type','Account type',ACCOUNT_TYPES.map(t=>({value:t,label:t})),a?a.type:'Customer')+
+      inputField('phone','Phone / reference',{type:'tel',value:a?a.phone||'':''})+
+      inputField('note','Note',{value:a?a.note||'':'' ,full:true,placeholder:'Optional'})+
+    '</div>'+
+    '<div class="form-note">Credit adds to the balance (money in or amount owed). Debit reduces it (money paid out or received).</div>',
+    onSubmit:function(fd){
+      const name = (fd.name||'').trim();
+      if(!name) fail('Enter an account name.');
+      if(DB.accounts.some(x=> x.name.toLowerCase() === name.toLowerCase() && (!a || x.id !== a.id))) fail('An account with this name already exists.');
+      if(a && a.type==='Cash' && fd.type!=='Cash' && DB.accounts.filter(x=>x.type==='Cash').length <= 1) fail('Keep at least one cash account. Add another cash account before changing this one.');
+      const rec = {name, type:fd.type, phone:(fd.phone||'').trim(), note:(fd.note||'').trim()};
+      if(a) Object.assign(a, rec);
+      else DB.accounts.push({id:uid('acc'), name, type:fd.type, phone:rec.phone, note:rec.note, createdAt:Date.now()});
+      save(); render();
+      return {message: a?'Account updated':'Account added'};
+    }
+  });
+}
+function confirmDeleteAccount(id){
+  const a = accountById(id);
+  if(!a) return;
+  if(a.type==='Cash' && DB.accounts.filter(x=>x.type==='Cash').length <= 1){
+    toast('The default cash account cannot be deleted','err'); return;
+  }
+  const n = accountTxList(a.id).length;
+  openModal({
+    title:'Delete '+a.name+'?',
+    subtitle:'The account and its whole ledger will be removed.',
+    submitLabel:'Delete account',
+    body:'<div class="alert red">'+icon('alert',17)+'<div><b>'+esc(a.name)+'</b>'+(n?' and its '+n+(n===1?' transaction':' transactions'):'')+' will be permanently deleted.</div></div>',
+    onSubmit:function(){
+      DB.accounts = DB.accounts.filter(x=>x.id!==id);
+      DB.accountTx = DB.accountTx.filter(t=>t.accountId!==id);
+      UI.accId = null;
+      save(); render();
+      return {message:'Account deleted'};
+    }
+  });
+}
+function openAccountTxForm(type, txId){
+  const acc = accountById(UI.accId);
+  if(!acc){ toast('Open an account first','err'); return; }
+  const t = txId ? DB.accountTx.find(x=>x.id===txId) : null;
+  if(txId && !t) return;
+  openModal({
+    title: t ? 'Edit transaction' : 'New transaction',
+    subtitle: acc.name + ' · balance ' + money(accountStats(acc.id).balance),
+    submitLabel: t ? 'Save changes' : 'Save transaction',
+    footLeft: t ? '<button type="button" class="btn red" data-act="del-account-tx" data-id="'+t.id+'">'+icon('trash',15)+' Delete</button>' : '',
+    body:'<div class="form-grid">'+
+      dateField('date','Date', t?t.date:todayISO())+
+      selectField('type','Type',[
+        {value:'credit',label:'Credit (+) — add to balance'},
+        {value:'debit',label:'Debit (−) — reduce balance'}
+      ], t?t.type:(type||'credit'))+
+      moneyField('amount','Amount (Rs)', t?t.amount:'', {required:true})+
+      inputField('note','Description',{value:t?t.note||'':'',full:true,placeholder:'e.g. payment received, bill paid'})+
+    '</div>'+
+    '<div class="form-note">Credit increases the ledger balance; debit decreases it. The running balance beside each entry is recalculated automatically.</div>',
+    onSubmit:function(fd){
+      const amt = num(fd.amount);
+      if(amt <= 0) fail('Enter an amount greater than zero.');
+      const rec = {
+        id: t ? t.id : uid('atx'),
+        accountId: acc.id,
+        date: fd.date,
+        type: fd.type === 'debit' ? 'debit' : 'credit',
+        amount: round2(amt),
+        note: (fd.note||'').trim(),
+        createdAt: t ? t.createdAt : Date.now()
+      };
+      if(t){ const i = DB.accountTx.findIndex(x=>x.id===t.id); DB.accountTx[i] = rec; }
+      else DB.accountTx.push(rec);
+      save(); render();
+      return {message: t?'Transaction updated':'Transaction saved'};
+    }
+  });
+}
+function confirmDeleteAccountTx(id){
+  const t = DB.accountTx.find(x=>x.id===id);
+  if(!t) return;
+  openModal({
+    title:'Delete transaction?',
+    subtitle:'This cannot be undone.',
+    submitLabel:'Delete',
+    body:'<div class="alert red">'+icon('alert',17)+'<div>This '+(t.type==='credit'?'credit':'debit')+' of <b>'+money(t.amount)+'</b>'+(t.note?' ('+esc(t.note)+')':'')+' will be removed from the ledger.</div></div>',
+    onSubmit:function(){
+      DB.accountTx = DB.accountTx.filter(x=>x.id!==id);
+      save(); render();
+      return {message:'Transaction deleted'};
     }
   });
 }
