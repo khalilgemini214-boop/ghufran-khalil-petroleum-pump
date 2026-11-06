@@ -383,6 +383,7 @@ html[data-theme="dark"] #toast-root{bottom:96px}
 .ledger-head .lh-main{flex:1;min-width:0}
 .ledger-actions{display:none}
 .txb{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:12px;padding:13px 18px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:var(--shadow);transition:.15s}
+.txb span{white-space:nowrap}
 .txb:active{transform:scale(.98)}
 .txb small{font-size:11px;font-weight:650;opacity:.7}
 .txb.cr{background:var(--green-soft);color:var(--green)}
@@ -459,6 +460,7 @@ body.ledger-open .view{padding-bottom:120px}
   .row.rec .row-amt{font-size:14px}
   .row.rec .row-actions{order:4;margin-left:auto;align-self:center}
   .nozzle-card .nc-val{font-size:20px}
+  .ledger-actions .txb small{display:none}
 }
 @media (max-width:380px){
   .nozzle-card .nc-unit{white-space:normal}
@@ -756,9 +758,7 @@ function seedData(){
     customerPayments:[],
     dips:[],
     meterResets:[],
-    accounts:[
-      {id:'acc_cash', name:'Cash in Hand', type:'Cash', phone:'', note:'Default cash account', createdAt:Date.now()}
-    ],
+    accounts:[],
     accountTx:[],
     cashEntries:[]
   };
@@ -774,6 +774,15 @@ function migrate(data){
   });
   out.rates = Object.assign({}, base.rates, data.rates||{});
   out.loans = []; // loans are calculated from Ghufran's investment share now
+  // Cash and bank are live accounts now. Drop the old empty manual cash account.
+  if(Array.isArray(out.accounts)){
+    const oldCash = out.accounts.find(a=>a.id==='acc_cash');
+    if(oldCash){
+      const hasTx = (out.accountTx||[]).some(t=>t.accountId==='acc_cash');
+      if(!hasTx) out.accounts = out.accounts.filter(a=>a.id!=='acc_cash');
+      else oldCash.name = 'Manual Cash';
+    }
+  }
   return out;
 }
 let DB;
@@ -912,7 +921,7 @@ function openModal(opts){
       box.scrollIntoView({behavior:'smooth', block:'nearest'});
     }
   };
-  if(opts.onMount) setTimeout(()=>{ try{ opts.onMount(form); }catch(e){ console.error(e); } }, 0);
+  if(opts.onMount) setTimeout(()=>{ if(!root.classList.contains('open')) return; try{ opts.onMount(form); }catch(e){ console.error(e); } }, 0);
   setTimeout(()=>{ const f = form.querySelector('input:not([type=hidden]),select,textarea'); if(f && !opts.noFocus) f.focus({preventScroll:true}); }, 60);
 }
 function closeModal(){
@@ -982,10 +991,23 @@ function fabHTML(page){
 }
 function ledgerActionsHTML(page){
   if(page !== 'accounts' || !UI.accId) return '';
-  return '<div class="ledger-actions no-print">'+
-    '<button class="txb cr" data-act="new-account-tx" data-v="credit">'+icon('arrowDown',18)+'<span>Credit</span><small>(add)</small></button>'+
-    '<button class="txb db" data-act="new-account-tx" data-v="debit">'+icon('arrowUp',18)+'<span>Debit</span><small>(reduce)</small></button>'+
-  '</div>';
+  const acc = accountById(UI.accId);
+  if(!acc) return '';
+  function btn(cls, act, label, sub, ic){
+    return '<button class="txb '+cls+'" data-act="'+act+'" data-id="'+acc.id+'">'+icon(ic,18)+'<span>'+label+'</span>'+(sub?'<small>'+sub+'</small>':'')+'</button>';
+  }
+  function bar(a,b){ return '<div class="ledger-actions no-print">'+a+b+'</div>'; }
+  if(!acc.system){
+    return bar(
+      '<button class="txb cr" data-act="new-account-tx" data-v="credit">'+icon('arrowDown',18)+'<span>Credit</span><small>(add)</small></button>',
+      '<button class="txb db" data-act="new-account-tx" data-v="debit">'+icon('arrowUp',18)+'<span>Debit</span><small>(reduce)</small></button>'
+    );
+  }
+  if(acc.id === 'sys_cash') return bar(btn('cr','sys-cash-in','Cash in','','arrowDown'), btn('db','sys-cash-out','Cash out','','arrowUp'));
+  if(acc.id === 'sys_bank') return bar(btn('cr','sys-bank-deposit','Deposit','to bank','arrowDown'), btn('db','sys-bank-withdraw','Withdraw','from bank','arrowUp'));
+  if(acc.supplierId) return bar(btn('cr','sys-supplier-purchase','Purchase','add bill','arrowDown'), btn('db','sys-supplier-pay','Pay','supplier','arrowUp'));
+  if(acc.customerId) return bar(btn('cr','sys-customer-sale','Credit sale','new reading','arrowDown'), btn('db','sys-customer-receipt','Receive','payment','arrowUp'));
+  return '';
 }
 function bottomNavHTML(){
   const page = UI.page;
@@ -1122,6 +1144,14 @@ document.addEventListener('click', function(e){
     case 'new-account-tx': openAccountTxForm(el.getAttribute('data-v')); break;
     case 'edit-account-tx': openAccountTxForm(null, id); break;
     case 'del-account-tx': confirmDeleteAccountTx(id); break;
+    case 'sys-cash-in': openCashForm('in'); break;
+    case 'sys-cash-out': openCashForm('out'); break;
+    case 'sys-bank-deposit': openCashForm('deposit'); break;
+    case 'sys-bank-withdraw': openCashForm('withdraw'); break;
+    case 'sys-supplier-purchase': { const a = accountById(id); if(a && a.supplierId) openPurchaseForm(null, a.supplierId); break; }
+    case 'sys-supplier-pay': { const a = accountById(id); if(a && a.supplierId) openSupplierPaymentForm(a.supplierId); break; }
+    case 'sys-customer-sale': { const a = accountById(id); openSaleForm(null, null, a?a.name:''); break; }
+    case 'sys-customer-receipt': { const a = accountById(id); if(a && a.customerId) openCustomerReceiptForm(a.customerId); break; }
     case 'new-dip': openDipForm(); break;
     case 'del-dip': confirmDelete('dip', id); break;
     case 'update-rate': openRateForm(); break;
@@ -1718,7 +1748,7 @@ function mountSales(){
     s.addEventListener('keydown', function(e){ if(e.key==='Escape'){ s.value=''; UI.salesSearch=''; renderSalesRowsOnly(); } });
   }
 }
-function openSaleForm(id, presetNozzle){
+function openSaleForm(id, presetNozzle, presetCustomerName){
   const editing = id ? DB.sales.find(s=>s.id===id) : null;
   const date = editing ? editing.date : todayISO();
   let nozzle = editing ? editing.nozzleId : (presetNozzle || (DB.nozzles[0]&&DB.nozzles[0].id));
@@ -1754,7 +1784,7 @@ function openSaleForm(id, presetNozzle){
           '<div class="tiny muted" id="sc-costhint">Avg buy rate —</div>'+
         '</div>'+
         moneyField('cash','Cash received (Rs)', cashVal, {full:false, hint:'Leave blank = full amount in cash'})+
-        inputField('customerName','Customer name (if credit)', {value: editing?editing.customerName||'':''})+
+        inputField('customerName','Customer name (if credit)', {value: editing?editing.customerName||'':(presetCustomerName||'')})+
         '<div class="field full"><label for="sale-note">Note (optional)</label><textarea id="sale-note" name="note" placeholder="e.g. night shift, generator, etc.">'+esc(editing?editing.note||'':'')+'</textarea></div>'+
       '</div>'+
       '<div class="form-note">Meter readings are the most accurate record. If the dispenser meter was reset physically, record the reset in <b>Settings → Nozzles</b> (Reset button) and this opening reading will follow the new number automatically.</div>',
@@ -1837,7 +1867,8 @@ function openSaleForm(id, presetNozzle){
       if(editing){ const i = DB.sales.findIndex(s=>s.id===editing.id); DB.sales[i]=rec; }
       else DB.sales.push(rec);
       save();
-      nav('sales');
+      if(UI.page === 'accounts' && UI.accId) render();
+      else nav('sales');
       if(credit>0) setTimeout(()=>toast('Sale saved · '+money(credit)+' credit recorded','ok'),100);
     }
   });
@@ -1980,7 +2011,7 @@ function suppliersTabHTML(){
     '</div>'+
   '</div>';
 }
-function openPurchaseForm(id){
+function openPurchaseForm(id, presetSupplierId){
   const editing = id ? DB.purchases.find(p=>p.id===id) : null;
   const supOpts = DB.suppliers.map(s=>({value:s.id,label:s.name}));
   supOpts.push({value:'__new', label:'+ Add new supplier'});
@@ -1991,7 +2022,7 @@ function openPurchaseForm(id){
     submitLabel: editing?'Save changes':'Save purchase',
     body:'<div class="form-grid">'+
       dateField('date','Date', editing?editing.date:todayISO())+
-      selectField('supplierId','Supplier', supOpts, editing?editing.supplierId:(DB.suppliers[0]?DB.suppliers[0].id:'__new'), {full:true})+
+      selectField('supplierId','Supplier', supOpts, editing?editing.supplierId:(presetSupplierId || (DB.suppliers[0]?DB.suppliers[0].id:'__new')), {full:true})+
       '<div id="new-supplier-field" class="field full" style="display:none"><label for="newSupplierName">New supplier name</label><input type="text" id="newSupplierName" name="newSupplierName" placeholder="e.g. PSO Filling Plant" /></div>'+
       selectField('product','Product', DB.products.map(p=>({value:p.id,label:p.name})), editing?editing.product:'petrol')+
       inputField('invoice','Invoice / bill no.', {value: editing?editing.invoice||'':''})+
@@ -2860,7 +2891,7 @@ function pageCash(){
   '</div>'+
   '';
 }
-function openCashForm(){
+function openCashForm(presetType){
   openModal({
     title:'Cash / bank entry', subtitle:'Record cash movements outside sales and purchases.',
     body:'<div class="form-grid">'+
@@ -2870,7 +2901,7 @@ function openCashForm(){
         {value:'out',label:'Cash out (other payment)'},
         {value:'deposit',label:'Deposit cash to bank'},
         {value:'withdraw',label:'Withdraw cash from bank'}
-      ],'in')+
+      ],presetType||'in')+
       inputField('label','Label',{placeholder:'e.g. generator sale, bank deposit',full:true})+
       moneyField('amount','Amount', '', {required:true})+
       inputField('note','Note',{full:true})+
@@ -2896,22 +2927,125 @@ const ACCOUNT_META = {
   Expense:{tone:'red', icon:'receipt'}
 };
 function accountMeta(type){ return ACCOUNT_META[type] || ACCOUNT_META.Customer; }
-function accountById(id){ return DB.accounts.find(a=>a.id===id); }
+function systemAccounts(){
+  const list = [
+    {id:'sys_cash', name:'Cash in Hand', type:'Cash', phone:'', note:'Cash Book', createdAt:0, system:true},
+    {id:'sys_bank', name:'Bank', type:'Bank', phone:'', note:'Bank balance', createdAt:0, system:true}
+  ];
+  DB.suppliers.forEach(s=>list.push({id:'sys_sup_'+s.id, name:s.name, type:'Supplier', phone:s.phone||'', note:s.note||'Fuel supplier', createdAt:s.createdAt||0, system:true, supplierId:s.id}));
+  DB.customers.forEach(c=>list.push({id:'sys_cus_'+c.id, name:c.name, type:'Customer', phone:c.phone||'', note:c.note||'Credit customer', createdAt:c.createdAt||0, system:true, customerId:c.id}));
+  return list;
+}
+function allAccounts(){ return systemAccounts().concat(DB.accounts); }
+function accountById(id){ return allAccounts().find(a=>a.id===id); }
+function entryCmp(a,b){
+  return a.date===b.date ? (a.createdAt||0)-(b.createdAt||0) : (a.date<b.date?-1:1);
+}
 function accountTxList(accountId){
-  return DB.accountTx.filter(t=>t.accountId===accountId)
-    .sort((a,b)=> a.date===b.date ? (a.createdAt||0)-(b.createdAt||0) : (a.date<b.date?-1:1));
+  return DB.accountTx.filter(t=>t.accountId===accountId).sort(entryCmp);
+}
+function accountEntries(accountId){
+  const acc = accountById(accountId);
+  if(!acc) return [];
+  const out = [];
+  if(!acc.system){
+    accountTxList(accountId).forEach(t=>out.push({
+      id:t.id, date:t.date, createdAt:t.createdAt||0, type:t.type, amount:num(t.amount),
+      note:t.note||'', sub:'Manual entry', manual:true
+    }));
+    return out;
+  }
+  if(acc.id === 'sys_cash'){
+    cashLedger().forEach((r,i)=>{
+      const inAmt = num(r.inAmt), outAmt = num(r.outAmt);
+      let type = 'credit', amount = 0;
+      if(inAmt > 0){ type='credit'; amount=inAmt; }
+      else if(inAmt < 0){ type='debit'; amount=-inAmt; }
+      else if(outAmt > 0){ type='debit'; amount=outAmt; }
+      else if(outAmt < 0){ type='credit'; amount=-outAmt; }
+      if(!amount) return;
+      out.push({id:'cash_'+i, date:r.date, createdAt:r.ts||0, type, amount, note:r.label, sub:r.sub||'Cash Book', system:true});
+    });
+    return out;
+  }
+  if(acc.id === 'sys_bank'){
+    if(num(DB.settings.openingBank)){
+      out.push({id:'bank_open', date:DB.settings.openingDate||'2000-01-01', createdAt:0,
+        type:num(DB.settings.openingBank)>0?'credit':'debit', amount:Math.abs(num(DB.settings.openingBank)),
+        note:'Opening bank balance', sub:'Settings', system:true});
+    }
+    bankLedger().forEach((r,i)=>{
+      const inAmt = num(r.inAmt), outAmt = num(r.outAmt);
+      let type = 'credit', amount = 0;
+      if(inAmt > 0){ type='credit'; amount=inAmt; }
+      else if(inAmt < 0){ type='debit'; amount=-inAmt; }
+      else if(outAmt > 0){ type='debit'; amount=outAmt; }
+      else if(outAmt < 0){ type='credit'; amount=-outAmt; }
+      if(!amount) return;
+      out.push({id:'bank_'+i, date:r.date, createdAt:r.ts||0, type, amount, note:r.label, sub:r.sub||'Cash Book', system:true});
+    });
+    return out;
+  }
+  if(acc.supplierId){
+    const s = DB.suppliers.find(x=>x.id===acc.supplierId);
+    if(!s) return [];
+    if(num(s.openingBalance)){
+      const created = s.createdAt ? new Date(s.createdAt) : null;
+      const openDate = created && !isNaN(created.getTime()) ? created.toISOString().slice(0,10) : '2000-01-01';
+      const credit = num(s.openingBalance) > 0;
+      out.push({id:'sup_open', date:openDate, createdAt:0, type:credit?'credit':'debit',
+        amount:Math.abs(num(s.openingBalance)), note:'Opening balance', sub:'Supplier', system:true});
+    }
+    DB.purchases.filter(p=>p.supplierId===s.id).forEach(p=>{
+      out.push({id:'sup_p_'+p.id, date:p.date, createdAt:p.createdAt||0, type:'credit',
+        amount:num(p.amount), note:'Purchase · '+productById(p.product).name+' · '+litres(p.litres),
+        sub:(p.invoice?p.invoice+' · ':'')+'Fuel purchase', system:true, sourceAct:'edit-purchase', sourceId:p.id});
+      if(num(p.paid) > 0){
+        out.push({id:'sup_pp_'+p.id, date:p.date, createdAt:(p.createdAt||0)+1, type:'debit',
+          amount:num(p.paid), note:'Paid at purchase',
+          sub:(p.payMethod==='bank'?'Bank':'Cash')+' · '+s.name, system:true, sourceAct:'edit-purchase', sourceId:p.id});
+      }
+    });
+    DB.supplierPayments.filter(p=>p.supplierId===s.id).forEach(p=>{
+      out.push({id:'sup_sp_'+p.id, date:p.date, createdAt:p.createdAt||0, type:'debit',
+        amount:num(p.amount), note:'Payment to supplier',
+        sub:(p.method==='bank'?'Bank':'Cash')+(p.note?' · '+p.note:''), system:true});
+    });
+    return out;
+  }
+  if(acc.customerId){
+    DB.sales.filter(s=>s.customerId===acc.customerId && num(s.credit)>0).forEach(s=>{
+      out.push({id:'cus_s_'+s.id, date:s.date, createdAt:s.createdAt||0, type:'credit',
+        amount:num(s.credit), note:'Credit sale · '+productById(s.product).name+' · '+litres(s.litres),
+        sub:'Sale'+(s.note?' · '+s.note:''), system:true, sourceAct:'edit-sale', sourceId:s.id});
+    });
+    DB.customerPayments.filter(p=>p.customerId===acc.customerId).forEach(p=>{
+      out.push({id:'cus_p_'+p.id, date:p.date, createdAt:p.createdAt||0, type:'debit',
+        amount:num(p.amount), note:'Payment received',
+        sub:(p.method==='bank'?'Bank':'Cash')+(p.note?' · '+p.note:''), system:true});
+    });
+    return out;
+  }
+  return out;
+}
+function withBalances(entries){
+  let run = 0;
+  return entries.slice().sort(entryCmp).map(e=>{
+    run += (e.type==='credit'?1:-1) * num(e.amount);
+    return Object.assign({}, e, {balance:round2(run)});
+  });
 }
 function accountStats(accountId){
   let credit = 0, debit = 0;
-  accountTxList(accountId).forEach(t=>{
-    if(t.type==='credit') credit += num(t.amount);
-    else debit += num(t.amount);
+  accountEntries(accountId).forEach(e=>{
+    if(e.type==='credit') credit += num(e.amount);
+    else debit += num(e.amount);
   });
   return {credit:round2(credit), debit:round2(debit), balance:round2(credit-debit)};
 }
 function accountsTotals(){
   let credit = 0, debit = 0;
-  DB.accounts.forEach(a=>{
+  allAccounts().forEach(a=>{
     const b = accountStats(a.id).balance;
     if(b > 0) credit += b;
     else if(b < 0) debit += -b;
@@ -2919,7 +3053,7 @@ function accountsTotals(){
   return {credit:round2(credit), debit:round2(debit), balance:round2(credit-debit)};
 }
 function accountLastActivity(a){
-  const list = accountTxList(a.id);
+  const list = withBalances(accountEntries(a.id));
   if(list.length){
     const t = list[list.length-1];
     return (t.createdAt||0) || (t.date ? new Date(t.date+'T00:00:00').getTime() : 0);
@@ -2927,14 +3061,14 @@ function accountLastActivity(a){
   return a.createdAt || 0;
 }
 function accountLastText(a){
-  const list = accountTxList(a.id);
+  const list = withBalances(accountEntries(a.id));
   if(!list.length) return 'No entries';
   const t = list[list.length-1];
   return fmtDate(t.date) + (t.note ? ' · '+t.note : '');
 }
 function accountsFiltered(){
   const q = UI.accSearch.toLowerCase();
-  return DB.accounts.filter(a=>{
+  return allAccounts().filter(a=>{
     if(UI.accType !== 'all' && a.type !== UI.accType) return false;
     if(q){
       const hay = [a.name, a.phone, a.note, a.type].join(' ').toLowerCase();
@@ -2942,14 +3076,15 @@ function accountsFiltered(){
     }
     return true;
   }).sort((a,b)=>{
-    const ca = a.type==='Cash'?1:0, cb = b.type==='Cash'?1:0;
-    if(ca !== cb) return cb - ca;
-    return accountLastActivity(b) - accountLastActivity(a);
+    const wa = a.id==='sys_cash'?0:a.id==='sys_bank'?1:2;
+    const wb = b.id==='sys_cash'?0:b.id==='sys_bank'?1:2;
+    if(wa !== wb) return wa - wb;
+    return (accountLastActivity(b) - accountLastActivity(a)) || a.name.localeCompare(b.name);
   });
 }
 function accountCardsHTML(){
   const list = accountsFiltered();
-  if(!list.length) return emptyState('bank', DB.accounts.length?'No matching accounts':'No accounts yet', DB.accounts.length?'Try a different search or type.':'Add an account to start its ledger.','');
+  if(!list.length) return emptyState('bank','No matching accounts','Try a different search or type.','');
   return '<div class="acct-grid">'+list.map(a=>{
     const st = accountStats(a.id);
     const meta = accountMeta(a.type);
@@ -2958,7 +3093,7 @@ function accountCardsHTML(){
       '<div class="ac-top">'+
         '<div class="partner-avatar" style="width:40px;height:40px;border-radius:12px;background:var(--'+meta.tone+'-soft);color:var(--'+meta.tone+')">'+icon(meta.icon,18)+'</div>'+
         '<div class="ac-main"><div class="ac-name">'+esc(a.name)+'</div>'+
-        '<div class="ac-sub">'+esc(a.phone || a.note || 'No phone / reference')+'</div></div>'+
+        '<div class="ac-sub">'+esc((a.system?'Live · ':'') + (a.phone || a.note || 'No phone / reference'))+'</div></div>'+
         '<span class="badge '+meta.tone+'">'+esc(a.type)+'</span>'+
       '</div>'+
       '<div class="ac-bottom">'+
@@ -2977,7 +3112,7 @@ function pageAccounts(){
   const totals = accountsTotals();
   return ''+
   '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">'+
-    '<div class="tb-sub" style="font-size:12px">Customer, supplier, bank, cash and expense ledgers</div>'+
+    '<div class="tb-sub" style="font-size:12px">Live cash, bank, supplier and customer ledgers — plus manual accounts</div>'+
     pageActions('<button class="btn" data-act="new-account">'+icon('plus',16)+' New account</button>')+
   '</div>'+
   '<div class="acc-sums" style="margin-bottom:14px">'+
@@ -2998,23 +3133,31 @@ function pageAccounts(){
 function pageAccountLedger(a){
   const st = accountStats(a.id);
   const meta = accountMeta(a.type);
-  const count = accountTxList(a.id).length;
+  const count = accountEntries(a.id).length;
   const balColor = st.balance > 0 ? 'var(--green)' : st.balance < 0 ? 'var(--red)' : 'var(--ink)';
+  let ledgerNote;
+  if(!a.system) ledgerNote = 'Credit adds to the ledger balance; debit reduces it. Tap any transaction to edit or delete it.';
+  else if(a.id==='sys_cash') ledgerNote = 'Live from the Cash Book. Credit = cash in, debit = cash out.';
+  else if(a.id==='sys_bank') ledgerNote = 'Live bank account. Credit = money in, debit = money out.';
+  else if(a.supplierId) ledgerNote = 'Live supplier account. Credit = purchase bill, debit = amount paid. Balance is what you owe.';
+  else if(a.customerId) ledgerNote = 'Live customer account. Credit = credit sale, debit = payment received. Balance is what they owe.';
+  else ledgerNote = 'Live account built from the pump books.';
   return ''+
   '<div class="card" style="margin-bottom:14px"><div class="card-body" style="display:flex;flex-direction:column;gap:12px">'+
     '<div class="ledger-head">'+
       '<button class="icon-btn" data-act="close-ledger" aria-label="Back to accounts">'+icon('arrowLeft',18)+'</button>'+
       '<div class="lh-main"><div style="font-size:16px;font-weight:850;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(a.name)+'</div>'+
-        '<div class="row-sub" style="margin-top:2px"><span class="badge '+meta.tone+'">'+esc(a.type)+'</span>'+(a.phone?'<span>· '+esc(a.phone)+'</span>':'')+'<span>· '+count+(count===1?' transaction':' transactions')+'</span></div></div>'+
-      '<button class="mini-btn no-print" data-act="edit-account" data-id="'+a.id+'" aria-label="Edit account">'+icon('edit',14)+'</button>'+
-      '<button class="mini-btn danger no-print" data-act="del-account" data-id="'+a.id+'" aria-label="Delete account">'+icon('trash',14)+'</button>'+
+        '<div class="row-sub" style="margin-top:2px"><span class="badge '+meta.tone+'">'+esc(a.type)+'</span>'+(a.system?'<span class="badge gray">Live</span>':'')+(a.phone?'<span>· '+esc(a.phone)+'</span>':'')+'<span>· '+count+(count===1?' transaction':' transactions')+'</span></div></div>'+
+      (a.system ? '' :
+        '<button class="mini-btn no-print" data-act="edit-account" data-id="'+a.id+'" aria-label="Edit account">'+icon('edit',14)+'</button>'+
+        '<button class="mini-btn danger no-print" data-act="del-account" data-id="'+a.id+'" aria-label="Delete account">'+icon('trash',14)+'</button>')+
     '</div>'+
     '<div class="acc-sums">'+
       '<div class="as"><span>Total credit</span><b class="num" style="color:var(--green)">'+money0(st.credit)+'</b></div>'+
       '<div class="as"><span>Total debit</span><b class="num" style="color:var(--red)">'+money0(st.debit)+'</b></div>'+
       '<div class="as"><span>Balance</span><b class="num" style="color:'+balColor+'">'+money0(st.balance)+'</b></div>'+
     '</div>'+
-    '<div class="tiny muted">Credit adds to the ledger balance; debit reduces it. Tap any transaction to edit or delete it.</div>'+
+    '<div class="tiny muted">'+esc(ledgerNote)+'</div>'+
   '</div></div>'+
   '<div class="card">'+
     '<div class="card-head" style="flex-wrap:wrap"><div><h3>Ledger</h3><p>Every credit and debit in this account</p></div>'+
@@ -3025,27 +3168,25 @@ function pageAccountLedger(a){
   '';
 }
 function accountTxRowsHTML(accountId){
-  const all = accountTxList(accountId);
-  let run = 0;
-  const bal = {};
-  all.forEach(t=>{
-    run += (t.type==='credit'?1:-1) * num(t.amount);
-    bal[t.id] = round2(run);
-  });
+  const acc = accountById(accountId);
+  const all = withBalances(accountEntries(accountId));
   const q = UI.accTxSearch.toLowerCase();
-  const list = all.slice().reverse().filter(t=>{
+  const list = all.slice().reverse().filter(e=>{
     if(!q) return true;
-    return [t.note, t.type, t.date, numFmt(t.amount)].join(' ').toLowerCase().indexOf(q) !== -1;
+    return [e.note, e.sub, e.type, e.date, numFmt(e.amount)].join(' ').toLowerCase().indexOf(q) !== -1;
   });
-  if(!list.length) return emptyState('bank', q?'No matching transactions':'No transactions yet', q?'Try a different description.':'Use the Credit or Debit buttons below to add the first entry.','');
-  return '<div class="rows">'+list.map(t=>{
-    const credit = t.type === 'credit';
-    return '<div class="row" data-act="edit-account-tx" data-id="'+t.id+'" style="cursor:pointer">'+
+  if(!list.length) return emptyState('bank', q?'No matching transactions':'No transactions yet',
+    q?'Try a different description.':(acc && acc.system?'Entries appear here automatically as the pump books change.':'Use the Credit or Debit buttons below to add the first entry.'),'');
+  return '<div class="rows">'+list.map(e=>{
+    const credit = e.type === 'credit';
+    const act = e.manual ? 'edit-account-tx' : (e.sourceAct || '');
+    const ref = e.manual ? e.id : (e.sourceId || '');
+    return '<div class="row"'+(act?' data-act="'+act+'" data-id="'+ref+'" style="cursor:pointer"':'')+'>'+
       '<div class="partner-avatar '+(credit?'a':'b')+'" style="width:34px;height:34px;border-radius:10px">'+icon(credit?'arrowDown':'arrowUp',16)+'</div>'+
-      '<div class="row-main"><div class="row-title">'+esc(t.note || (credit?'Credit':'Debit'))+'</div>'+
-        '<div class="row-sub"><span>'+fmtDate(t.date)+'</span><span>·</span><span>'+esc(credit?'Credit':'Debit')+'</span></div></div>'+
-      '<div class="row-right"><div class="row-amt '+(credit?'pos':'neg')+' num">'+(credit?'+':'−')+money(Math.abs(num(t.amount)))+'</div><div class="tiny muted num">Bal '+money0(bal[t.id]||0)+'</div></div>'+
-      '<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-account-tx" data-id="'+t.id+'" aria-label="Delete transaction">'+icon('trash',14)+'</button></div>'+
+      '<div class="row-main"><div class="row-title">'+esc(e.note || (credit?'Credit':'Debit'))+'</div>'+
+        '<div class="row-sub"><span>'+fmtDate(e.date)+'</span><span>·</span><span>'+esc(e.sub || (credit?'Credit':'Debit'))+'</span>'+(e.system?'<span class="badge gray">Auto</span>':'')+'</div></div>'+
+      '<div class="row-right"><div class="row-amt '+(credit?'pos':'neg')+' num">'+(credit?'+':'−')+money(Math.abs(num(e.amount)))+'</div><div class="tiny muted num">Bal '+money0(e.balance||0)+'</div></div>'+
+      (e.manual?'<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-account-tx" data-id="'+e.id+'" aria-label="Delete transaction">'+icon('trash',14)+'</button></div>':'')+
     '</div>';
   }).join('')+'</div>';
 }
@@ -3087,9 +3228,10 @@ function mountAccounts(){
 }
 function openAccountForm(id){
   const a = id ? accountById(id) : null;
+  if(a && a.system){ toast('Live accounts cannot be edited','err'); return; }
   openModal({
     title: a ? 'Edit account' : 'New account',
-    subtitle: 'Customer, supplier, bank, cash or expense ledger.',
+    subtitle: 'A manual ledger for a party that is not already in the pump books.',
     submitLabel: a ? 'Save changes' : 'Add account',
     body:'<div class="form-grid">'+
       inputField('name','Account name',{value:a?a.name:'',required:true,full:true})+
@@ -3097,12 +3239,11 @@ function openAccountForm(id){
       inputField('phone','Phone / reference',{type:'tel',value:a?a.phone||'':''})+
       inputField('note','Note',{value:a?a.note||'':'' ,full:true,placeholder:'Optional'})+
     '</div>'+
-    '<div class="form-note">Credit adds to the balance (money in or amount owed). Debit reduces it (money paid out or received).</div>',
+    '<div class="form-note">Credit adds to the balance (money in or amount owed). Debit reduces it (money paid out or received). Cash, bank, suppliers and credit customers already appear automatically as live accounts.</div>',
     onSubmit:function(fd){
       const name = (fd.name||'').trim();
       if(!name) fail('Enter an account name.');
-      if(DB.accounts.some(x=> x.name.toLowerCase() === name.toLowerCase() && (!a || x.id !== a.id))) fail('An account with this name already exists.');
-      if(a && a.type==='Cash' && fd.type!=='Cash' && DB.accounts.filter(x=>x.type==='Cash').length <= 1) fail('Keep at least one cash account. Add another cash account before changing this one.');
+      if(allAccounts().some(x=> x.name.toLowerCase() === name.toLowerCase() && (!a || x.id !== a.id))) fail('An account with this name already exists.');
       const rec = {name, type:fd.type, phone:(fd.phone||'').trim(), note:(fd.note||'').trim()};
       if(a) Object.assign(a, rec);
       else DB.accounts.push({id:uid('acc'), name, type:fd.type, phone:rec.phone, note:rec.note, createdAt:Date.now()});
@@ -3114,10 +3255,8 @@ function openAccountForm(id){
 function confirmDeleteAccount(id){
   const a = accountById(id);
   if(!a) return;
-  if(a.type==='Cash' && DB.accounts.filter(x=>x.type==='Cash').length <= 1){
-    toast('The default cash account cannot be deleted','err'); return;
-  }
-  const n = accountTxList(a.id).length;
+  if(a.system){ toast('Live accounts cannot be deleted','err'); return; }
+  const n = accountEntries(a.id).length;
   openModal({
     title:'Delete '+a.name+'?',
     subtitle:'The account and its whole ledger will be removed.',
@@ -3135,6 +3274,7 @@ function confirmDeleteAccount(id){
 function openAccountTxForm(type, txId){
   const acc = accountById(UI.accId);
   if(!acc){ toast('Open an account first','err'); return; }
+  if(acc.system){ toast('Use the buttons below to add entries to this live account','err'); return; }
   const t = txId ? DB.accountTx.find(x=>x.id===txId) : null;
   if(txId && !t) return;
   openModal({
