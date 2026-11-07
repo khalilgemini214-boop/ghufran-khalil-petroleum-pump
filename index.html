@@ -2061,7 +2061,7 @@ function suppliersTabHTML(){
         (sups.length ? '<div class="rows">'+sups.map(s=>{
           const due = supplierDues(s.id);
           return '<div class="row rec"><div class="partner-avatar a" style="width:34px;height:34px;border-radius:10px">'+esc(initials(s.name))+'</div>'+
-            '<div class="row-main"><div class="row-title">'+esc(s.name)+'</div><div class="row-sub">'+(s.phone?esc(s.phone)+' · ':'')+(due>0?'Due '+money(due):'No balance')+'</div></div>'+
+            '<div class="row-main"><div class="row-title">'+esc(s.name)+'</div><div class="row-sub">'+(s.phone?esc(s.phone)+' · ':'')+(due>0?'Due '+money(due):due<0?'Advance '+money(-due):'No balance')+'</div></div>'+
             '<div class="row-actions no-print"><button class="btn sm ghost" data-act="pay-supplier" data-id="'+s.id+'">Pay</button>'+
             '<button class="mini-btn" data-act="edit-supplier" data-id="'+s.id+'" aria-label="Edit">'+icon('edit',14)+'</button>'+
             '<button class="mini-btn danger" data-act="del-supplier" data-id="'+s.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div></div>';
@@ -2184,7 +2184,6 @@ function openSupplierPaymentForm(supplierId, paymentId){
   const sup = editing ? supplierById(editing.supplierId) : (supplierId ? supplierById(supplierId) : DB.suppliers[0]);
   if(!sup || !sup.id){ toast('Add a supplier first','err'); return; }
   const due = supplierDues(sup.id);
-  const available = round2(due + (editing ? num(editing.amount) : 0));
   const opts = editing
     ? [{value:sup.id, label:sup.name+' · due '+money0(due)}]
     : DB.suppliers.map(s=>({value:s.id,label:s.name+' · due '+money0(supplierDues(s.id))}));
@@ -2196,18 +2195,17 @@ function openSupplierPaymentForm(supplierId, paymentId){
     body:'<div class="form-grid">'+
       selectField('supplierId','Supplier',opts,supplierId||sup.id,{full:true})+
       dateField('date','Date',editing?editing.date:todayISO())+
-      moneyField('amount','Amount paid',editing?num(editing.amount):(due>0?due:0))+
+      moneyField('amount','Amount paid',editing?num(editing.amount):(due>0?due:0),{hint:'You can pay more than the due; the extra becomes an advance'})+
       selectField('method','Paid from',[{value:'cash',label:'Cash'},{value:'bank',label:'Bank'}],editing?editing.method||'cash':'cash')+
       bankFieldHTML(editing?editing.bankId:null, 'Bank account')+
       inputField('note','Note',{value:editing?editing.note||'':'',full:true,placeholder:'Cheque no., reference, etc.'})+
-    '</div>',
+    '</div>'+
+    '<div class="form-note">Overpayment is allowed. If you pay more than the outstanding, the supplier balance becomes negative and the extra is treated as an advance.</div>',
     onMount:function(form){ bindBankToggle(form, 'method', v=>v==='bank'); },
     onSubmit:function(fd){
       const amt = num(fd.amount);
       if(amt<=0) fail('Enter an amount greater than zero.');
       const sid = fd.supplierId;
-      const d = round2(supplierDues(sid) + (editing && editing.supplierId===sid ? num(editing.amount) : 0));
-      if(amt > d + 0.01) fail('Payment is more than the outstanding due ('+money(d)+').');
       const bankId = fd.method==='bank' ? resolvedBankId(fd.bankId) : null;
       if(editing){
         Object.assign(editing, {date:fd.date, amount:round2(amt), method:fd.method, bankId, note:fd.note||''});
@@ -3307,7 +3305,7 @@ function pageAccountLedger(a){
   if(!a.system) ledgerNote = 'Credit adds to the ledger balance; debit reduces it. Tap any transaction to edit or delete it.';
   else if(a.id==='sys_cash') ledgerNote = 'Live from the Cash Book. Credit = cash in, debit = cash out.';
   else if(a.bankId) ledgerNote = 'Live bank account. Credit = money in, debit = money out.';
-  else if(a.supplierId) ledgerNote = 'Live supplier account. Credit = purchase bill, debit = amount paid. Balance is what you owe.';
+  else if(a.supplierId) ledgerNote = 'Live supplier account. Credit = purchase bill, debit = amount paid. Negative balance means an advance paid to the supplier.';
   else if(a.customerId) ledgerNote = 'Live customer account. Credit = credit sale, debit = payment received. Balance is what they owe.';
   else ledgerNote = 'Live account built from the pump books.';
   return ''+
