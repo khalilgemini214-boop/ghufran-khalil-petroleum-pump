@@ -874,6 +874,7 @@ const UI = {
   accSearch:'',
   accType:'all',
   accTxSearch:'',
+  navStack:[],
   moreOpen:false
 };
 const PAGES = [
@@ -1069,6 +1070,10 @@ function afterRender(){
 }
 function nav(page){
   if(!PAGES.some(p=>p.id===page)) return;
+  if(UI.page && UI.page !== page){
+    UI.navStack.push(UI.page);
+    if(UI.navStack.length > 20) UI.navStack.shift();
+  }
   UI.page = page;
   UI.accId = null;
   UI.moreOpen = false;
@@ -1134,6 +1139,7 @@ document.addEventListener('click', function(e){
     case 'backup-now': backupJSON(); break;
     case 'backup-copy': openBackupText(); break;
     case 'share-backup-text': shareBackupText(); break;
+    case 'share-backup-file': shareBackupFileNative(); break;
     case 'download-backup-file': downloadBackupFromModal(); break;
     case 'restore-text': openRestoreText(); break;
     case 'copy-backup': copyBackupText(); break;
@@ -1155,11 +1161,13 @@ document.addEventListener('click', function(e){
     case 'edit-expense': openExpenseForm(id); break;
     case 'del-expense': confirmDelete('expense', id); break;
     case 'del-salary': confirmDelete('salaryPayment', id); break;
+    case 'edit-salary': openSalaryForm(null, id); break;
     case 'new-staff': openStaffForm(); break;
     case 'edit-staff': openStaffForm(id); break;
     case 'del-staff': confirmDelete('staff', id); break;
     case 'pay-salary': openSalaryForm(id); break;
     case 'new-investment': openInvestmentForm('capital'); break;
+    case 'edit-investment': openInvestmentForm(null, id); break;
     case 'withdraw-investment': openInvestmentForm('withdrawal'); break;
     case 'del-investment': confirmDelete('investment', id); break;
 
@@ -1167,8 +1175,11 @@ document.addEventListener('click', function(e){
     case 'repay-loan-suggested': openLoanRepaymentForm(num(el.getAttribute('data-amount'))); break;
     case 'del-repayment': confirmDelete('loanRepayment', id); break;
     case 'new-drawing': openDrawingForm(); break;
+    case 'edit-drawing': openDrawingForm(id); break;
     case 'del-drawing': confirmDelete('drawing', id); break;
     case 'new-cash': openCashForm(); break;
+    case 'edit-cash-entry': openCashForm(null, null, id); break;
+    case 'edit-opening-cash': openOpeningCashForm(); break;
     case 'del-cash': confirmDelete('cashEntry', id); break;
     case 'new-account': openAccountForm(); break;
     case 'edit-account': openAccountForm(id); break;
@@ -1215,6 +1226,8 @@ document.addEventListener('click', function(e){
     case 'add-bank': openBankForm(); break;
     case 'edit-bank': openBankForm(id); break;
     case 'del-bank': confirmDeleteBank(id); break;
+    case 'edit-bank-tx': openBankTxForm(id); break;
+    case 'del-bank-tx': confirmDeleteBankTx(id); break;
     case 'add-nozzle': openNozzleForm(); break;
     case 'edit-nozzle': openNozzleForm(id); break;
     case 'del-nozzle': confirmDelete('nozzle', id); break;
@@ -2515,28 +2528,31 @@ function openStaffForm(id){
     }
   });
 }
-function openSalaryForm(staffId){
+function openSalaryForm(staffId, paymentId){
   if(!DB.staff.length){ toast('Add a staff member first','err'); return; }
+  const editing = paymentId ? DB.salaryPayments.find(p=>p.id===paymentId) : null;
   const mk = currentMonth();
   const staffOpts = DB.staff.map(s=>{
     const paid = sum(DB.salaryPayments.filter(p=>p.staffId===s.id && inMonth(p.date,mk) && p.type!=='Advance'),p=>p.amount);
     return {value:s.id,label:s.name+' · balance '+money0(Math.max(0,num(s.salary)-paid))};
   });
-  const sid = staffId || DB.staff[0].id;
-  const st = DB.staff.find(x=>x.id===sid);
+  const sid = editing ? editing.staffId : (staffId || DB.staff[0].id);
+  const st = DB.staff.find(x=>x.id===sid) || DB.staff[0];
   const paid = sum(DB.salaryPayments.filter(p=>p.staffId===sid && inMonth(p.date,mk) && p.type!=='Advance'),p=>p.amount);
-  const bal = Math.max(0,num(st.salary)-paid);
+  const bal = editing ? num(editing.amount) : Math.max(0,num(st.salary)-paid);
   openModal({
-    title:'Pay salary', subtitle:'Salary payments count as a monthly expense.',
-    submitLabel:'Record payment',
+    title: editing ? 'Edit salary payment' : 'Pay salary',
+    subtitle:'Salary payments count as a monthly expense.',
+    submitLabel: editing ? 'Save changes' : 'Record payment',
+    footLeft: editing ? '<button type="button" class="btn red" data-act="del-salary" data-id="'+editing.id+'">'+icon('trash',15)+' Delete</button>' : '',
     body:'<div class="form-grid">'+
       selectField('staffId','Staff member',staffOpts,sid,{full:true})+
-      dateField('date','Date',todayISO())+
-      selectField('type','Type',[{value:'Salary',label:'Salary'},{value:'Advance',label:'Advance'},{value:'Bonus',label:'Bonus'}],'Salary')+
+      dateField('date','Date',editing?editing.date:todayISO())+
+      selectField('type','Type',[{value:'Salary',label:'Salary'},{value:'Advance',label:'Advance'},{value:'Bonus',label:'Bonus'}],editing?editing.type||'Salary':'Salary')+
       moneyField('amount','Amount',bal)+
-      selectField('method','Paid from',[{value:'cash',label:'Cash'},{value:'bank',label:'Bank'}],'cash')+
-      bankFieldHTML(null, 'Bank account')+
-      inputField('note','Note',{full:true})+
+      selectField('method','Paid from',[{value:'cash',label:'Cash'},{value:'bank',label:'Bank'}],editing?editing.method||'cash':'cash')+
+      bankFieldHTML(editing?editing.bankId:null, 'Bank account')+
+      inputField('note','Note',{value:editing?editing.note||'':'',full:true})+
     '</div>',
     onMount:function(form){
       const sel=form.querySelector('#staffId'), amt=form.querySelector('#amount'), type=form.querySelector('#type'), date=form.querySelector('#date');
@@ -2546,15 +2562,20 @@ function openSalaryForm(staffId){
         const s = DB.staff.find(x=>x.id===sel.value);
         if(s && type.value==='Salary') amt.value = Math.max(0,num(s.salary)-paid);
       }
-      sel.addEventListener('change',refresh); type.addEventListener('change',refresh); date.addEventListener('change',refresh);
+      if(!editing){
+        sel.addEventListener('change',refresh); type.addEventListener('change',refresh); date.addEventListener('change',refresh);
+      }
       bindBankToggle(form, 'method', v=>v==='bank');
     },
     onSubmit:function(fd){
       const amt=num(fd.amount);
       if(amt<=0) fail('Enter an amount greater than zero.');
       const bankId = fd.method==='bank' ? resolvedBankId(fd.bankId) : null;
-      DB.salaryPayments.push({id:uid('sal'), staffId:fd.staffId, date:fd.date, amount:round2(amt), type:fd.type, method:fd.method, bankId, note:fd.note||'', createdAt:Date.now()});
+      const rec = {staffId:fd.staffId, date:fd.date, amount:round2(amt), type:fd.type, method:fd.method, bankId, note:fd.note||''};
+      if(editing) Object.assign(editing, rec);
+      else DB.salaryPayments.push(Object.assign({id:uid('sal'), createdAt:Date.now()}, rec));
       commit();
+      return {message: editing?'Salary payment updated':'Salary payment recorded'};
     }
   });
 }
@@ -2768,22 +2789,24 @@ function settlementTabHTML(st){
   '</div>';
 }
 const INVESTMENT_LABELS = ['Initial investment','Additional investment','Working capital','Pump upgrade','Spare parts','Lease / deposit','Other investment'];
-function openInvestmentForm(presetKind){
-  const kind = presetKind === 'withdrawal' ? 'withdrawal' : 'capital';
+function openInvestmentForm(presetKind, editId){
+  const e = editId ? DB.investments.find(x=>x.id===editId) : null;
+  const kind = e ? e.kind : (presetKind === 'withdrawal' ? 'withdrawal' : 'capital');
   const shareLabel = 'Shared between partners ('+DB.partners.map(p=>p.share+'%').join(' / ')+')';
   const splitOpts = [{value:'both', label:shareLabel}].concat(DB.partners.map(p=>({value:p.id, label:'Only '+p.name})));
   openModal({
-    title: kind === 'withdrawal' ? 'Withdraw investment' : 'Add investment',
+    title: e ? 'Edit investment entry' : (kind === 'withdrawal' ? 'Withdraw investment' : 'Add investment'),
     subtitle: 'Investment is shared between both partners automatically.',
-    submitLabel: kind === 'withdrawal' ? 'Save withdrawal' : 'Save investment',
+    submitLabel: e ? 'Save changes' : (kind === 'withdrawal' ? 'Save withdrawal' : 'Save investment'),
+    footLeft: e ? '<button type="button" class="btn red" data-act="del-investment" data-id="'+e.id+'">'+icon('trash',15)+' Delete</button>' : '',
     body:'<div class="form-grid">'+
-      dateField('date','Date',todayISO())+
+      dateField('date','Date',e?e.date:todayISO())+
       selectField('kind','Entry type',[{value:'capital',label:'Add investment'},{value:'withdrawal',label:'Withdraw (minus)'}],kind)+
-      moneyField('amount','Amount', '', {required:true})+
-      selectField('split','Shared between',splitOpts,'both')+
-      inputField('label','Label',{placeholder:'e.g. Initial investment, pump upgrade'})+
-      '<div class="field full"><label for="inv-note">Note</label><textarea id="inv-note" name="note" placeholder="Purpose, reference, etc."></textarea></div>'+
-      '<label class="switch full"><input type="checkbox" name="inCash" id="inCash" checked><span class="track"></span><span>Money moved in / out of the business cash (updates cash in hand)</span></label>'+
+      moneyField('amount','Amount', e?e.amount:'', {required:true})+
+      selectField('split','Shared between',splitOpts,e?e.split||'both':'both')+
+      inputField('label','Label',{value:e?e.label||'':'',placeholder:'e.g. Initial investment, pump upgrade'})+
+      '<div class="field full"><label for="inv-note">Note</label><textarea id="inv-note" name="note" placeholder="Purpose, reference, etc.">'+esc(e?e.note||'':'')+'</textarea></div>'+
+      '<label class="switch full"><input type="checkbox" name="inCash" id="inCash" '+( !e || e.inCash!==false ? 'checked':'')+'><span class="track"></span><span>Money moved in / out of the business cash (updates cash in hand)</span></label>'+
       '<div class="calc-box full" id="inv-preview"></div>'+
       '<div class="form-note full">'+esc(partnerById('p1').name)+' is treated as the one funding the investment. '+esc(partnerById('p2').name)+'\'s share becomes his loan from '+esc(partnerById('p1').name)+' automatically.</div>'+
     '</div><datalist id="inv-labels">'+INVESTMENT_LABELS.map(l=>'<option value="'+attr(l)+'">').join('')+'</datalist>',
@@ -2822,17 +2845,21 @@ function openInvestmentForm(presetKind){
       const kind = fd.kind === 'withdrawal' ? 'withdrawal' : 'capital';
       const split = fd.split || 'both';
       if(kind === 'withdrawal'){
-        const available = split === 'both' ? totalCapital() : partnerCapital(split);
+        const existingWithdrawal = e && e.kind==='withdrawal' ? Math.abs(invAmount(e)) : 0;
+        const available = (split === 'both' ? totalCapital() : partnerCapital(split)) + existingWithdrawal;
         if(available <= 0) fail('There is no investment to withdraw yet.');
         if(amt > available + 0.01) fail('You cannot withdraw more than the available investment ('+money(available)+').');
       }
-      DB.investments.push({
-        id:uid('inv'), date:fd.date, kind, amount:round2(amt), split,
+      const rec = {
+        date:fd.date, kind, amount:round2(amt), split,
         partnerId: split === 'both' ? null : split,
         label:(fd.label||'').trim() || (kind==='withdrawal'?'Capital withdrawn':'Investment'),
-        note:fd.note||'', inCash: fd.inCash === 'on', createdAt:Date.now()
-      });
+        note:fd.note||'', inCash: fd.inCash === 'on'
+      };
+      if(e) Object.assign(e, rec);
+      else DB.investments.push(Object.assign({id:uid('inv'), createdAt:Date.now()}, rec));
       save(); render();
+      return {message: e?'Investment updated':'Investment saved'};
     }
   });
 }
@@ -2863,20 +2890,27 @@ function openLoanRepaymentForm(preset){
     }
   });
 }
-function openDrawingForm(){
+function openDrawingForm(id){
+  const e = id ? DB.drawings.find(x=>x.id===id) : null;
   openModal({
-    title:'Record partner drawing', subtitle:'Cash taken by a partner during the month.',
+    title: e ? 'Edit partner drawing' : 'Record partner drawing',
+    subtitle:'Cash taken by a partner during the month.',
+    submitLabel: e ? 'Save changes' : 'Record drawing',
+    footLeft: e ? '<button type="button" class="btn red" data-act="del-drawing" data-id="'+e.id+'">'+icon('trash',15)+' Delete</button>' : '',
     body:'<div class="form-grid">'+
-      dateField('date','Date',todayISO())+
-      selectField('partnerId','Partner',DB.partners.map(p=>({value:p.id,label:p.name})),DB.partners[0].id)+
-      moneyField('amount','Amount', '', {required:true})+
-      inputField('note','Note',{full:true,placeholder:'e.g. personal use, profit paid'} )+
+      dateField('date','Date',e?e.date:todayISO())+
+      selectField('partnerId','Partner',DB.partners.map(p=>({value:p.id,label:p.name})),e?e.partnerId:DB.partners[0].id)+
+      moneyField('amount','Amount', e?e.amount:'', {required:true})+
+      inputField('note','Note',{value:e?e.note||'':'',full:true,placeholder:'e.g. personal use, profit paid'})+
     '</div>',
     onSubmit:function(fd){
       const amt=num(fd.amount);
       if(amt<=0) fail('Enter a valid amount.');
-      DB.drawings.push({id:uid('drw'), date:fd.date, partnerId:fd.partnerId, amount:round2(amt), note:fd.note||'', createdAt:Date.now()});
+      const rec = {date:fd.date, partnerId:fd.partnerId, amount:round2(amt), note:fd.note||''};
+      if(e) Object.assign(e, rec);
+      else DB.drawings.push(Object.assign({id:uid('drw'), createdAt:Date.now()}, rec));
       commit();
+      return {message: e?'Drawing updated':'Drawing recorded'};
     }
   });
 }
@@ -2886,26 +2920,27 @@ function openDrawingForm(){
    ========================================================================== */
 function cashLedger(){
   const rows = [];
-  rows.push({date:DB.settings.openingDate||'2000-01-01', ts:0, label:'Opening cash', sub:'Balance set in Settings', inAmt:num(DB.settings.openingCash), outAmt:0, type:'opening'});
+  rows.push({date:DB.settings.openingDate||'2000-01-01', ts:0, label:'Opening cash', sub:'Balance set in Settings', inAmt:num(DB.settings.openingCash), outAmt:0, type:'opening', sourceAct:'edit-opening-cash'});
   DB.investments.filter(i=>i.inCash!==false).forEach(i=>{
     const eff = invAmount(i);
     if(!eff) return;
     const scope = invScopeLabel(i);
-    rows.push({date:i.date, ts:i.createdAt||0, label:eff>0?'Capital invested':'Capital withdrawn', sub:scope+(i.label?' · '+i.label:''), inAmt:eff>0?eff:0, outAmt:eff<0?-eff:0, type:'capital'});
+    rows.push({date:i.date, ts:i.createdAt||0, label:eff>0?'Capital invested':'Capital withdrawn', sub:scope+(i.label?' · '+i.label:''), inAmt:eff>0?eff:0, outAmt:eff<0?-eff:0, type:'capital', sourceAct:'edit-investment', sourceId:i.id, deleteAct:'del-investment'});
   });
-  DB.sales.forEach(s=>{ if(num(s.cash)>0) rows.push({date:s.date, ts:s.createdAt||0, label:'Fuel sale (cash)', sub:productById(s.product).name+' · '+litres(s.litres), inAmt:num(s.cash), outAmt:0, type:'sale'}); });
-  DB.customerPayments.forEach(p=>{ if(p.method!=='bank') rows.push({date:p.date, ts:p.createdAt||0, label:'Credit payment received', sub:(customerById(p.customerId)||{name:'Customer'}).name, inAmt:num(p.amount), outAmt:0, type:'receipt'}); });
+  DB.sales.forEach(s=>{ if(num(s.cash)>0) rows.push({date:s.date, ts:s.createdAt||0, label:'Fuel sale (cash)', sub:productById(s.product).name+' · '+litres(s.litres), inAmt:num(s.cash), outAmt:0, type:'sale', sourceAct:'edit-sale', sourceId:s.id, deleteAct:'del-sale'}); });
+  DB.customerPayments.forEach(p=>{ if(p.method!=='bank') rows.push({date:p.date, ts:p.createdAt||0, label:'Credit payment received', sub:(customerById(p.customerId)||{name:'Customer'}).name, inAmt:num(p.amount), outAmt:0, type:'receipt', sourceAct:'edit-customer-payment', sourceId:p.id, deleteAct:'del-customer-payment'}); });
   DB.cashEntries.forEach(c=>{
-    if(c.type==='in') rows.push({date:c.date, ts:c.createdAt||0, label:c.label||'Cash in', sub:'Manual cash entry', inAmt:num(c.amount), outAmt:0, type:'in'});
-    else if(c.type==='out') rows.push({date:c.date, ts:c.createdAt||0, label:c.label||'Cash out', sub:'Manual cash entry', inAmt:0, outAmt:num(c.amount), type:'out'});
-    else if(c.type==='deposit') rows.push({date:c.date, ts:c.createdAt||0, label:'Cash deposited to bank', sub:(c.label||'Bank deposit')+' · '+bankNameOf(c.bankId), inAmt:0, outAmt:num(c.amount), type:'deposit'});
-    else if(c.type==='withdraw') rows.push({date:c.date, ts:c.createdAt||0, label:'Cash withdrawn from bank', sub:(c.label||'Bank withdrawal')+' · '+bankNameOf(c.bankId), inAmt:num(c.amount), outAmt:0, type:'withdraw'});
+    const meta = {sourceAct:'edit-cash-entry', sourceId:c.id, deleteAct:'del-cash'};
+    if(c.type==='in') rows.push({date:c.date, ts:c.createdAt||0, label:c.label||'Cash in', sub:'Manual cash entry', inAmt:num(c.amount), outAmt:0, type:'in', ...meta});
+    else if(c.type==='out') rows.push({date:c.date, ts:c.createdAt||0, label:c.label||'Cash out', sub:'Manual cash entry', inAmt:0, outAmt:num(c.amount), type:'out', ...meta});
+    else if(c.type==='deposit') rows.push({date:c.date, ts:c.createdAt||0, label:'Cash deposited to bank', sub:(c.label||'Bank deposit')+' · '+bankNameOf(c.bankId), inAmt:0, outAmt:num(c.amount), type:'deposit', ...meta});
+    else if(c.type==='withdraw') rows.push({date:c.date, ts:c.createdAt||0, label:'Cash withdrawn from bank', sub:(c.label||'Bank withdrawal')+' · '+bankNameOf(c.bankId), inAmt:num(c.amount), outAmt:0, type:'withdraw', ...meta});
   });
-  DB.purchases.forEach(p=>{ if(num(p.paid)>0 && p.payMethod!=='bank') rows.push({date:p.date, ts:p.createdAt||0, label:'Fuel purchase paid', sub:supplierById(p.supplierId).name+' · '+litres(p.litres), inAmt:0, outAmt:num(p.paid), type:'purchase'}); });
-  DB.supplierPayments.forEach(p=>{ if(p.method!=='bank') rows.push({date:p.date, ts:p.createdAt||0, label:'Supplier payment', sub:supplierById(p.supplierId).name, inAmt:0, outAmt:num(p.amount), type:'purchase'}); });
-  DB.expenses.forEach(e=>{ if(e.paidFrom!=='bank') rows.push({date:e.date, ts:e.createdAt||0, label:e.category, sub:e.description||'Expense', inAmt:0, outAmt:num(e.amount), type:'expense'}); });
-  DB.salaryPayments.forEach(p=>{ if(p.method!=='bank') rows.push({date:p.date, ts:p.createdAt||0, label:'Salary'+(p.type&&p.type!=='Salary'?' · '+p.type:''), sub:(DB.staff.find(s=>s.id===p.staffId)||{name:'Staff'}).name, inAmt:0, outAmt:num(p.amount), type:'salary'}); });
-  DB.drawings.forEach(d=>rows.push({date:d.date, ts:d.createdAt||0, label:'Partner drawing', sub:partnerById(d.partnerId).name, inAmt:0, outAmt:num(d.amount), type:'drawing'}));
+  DB.purchases.forEach(p=>{ if(num(p.paid)>0 && p.payMethod!=='bank') rows.push({date:p.date, ts:p.createdAt||0, label:'Fuel purchase paid', sub:supplierById(p.supplierId).name+' · '+litres(p.litres), inAmt:0, outAmt:num(p.paid), type:'purchase', sourceAct:'edit-purchase', sourceId:p.id, deleteAct:'del-purchase'}); });
+  DB.supplierPayments.forEach(p=>{ if(p.method!=='bank') rows.push({date:p.date, ts:p.createdAt||0, label:'Supplier payment', sub:supplierById(p.supplierId).name, inAmt:0, outAmt:num(p.amount), type:'purchase', sourceAct:'edit-supplier-payment', sourceId:p.id, deleteAct:'del-supplier-payment'}); });
+  DB.expenses.forEach(e=>{ if(e.paidFrom!=='bank') rows.push({date:e.date, ts:e.createdAt||0, label:e.category, sub:e.description||'Expense', inAmt:0, outAmt:num(e.amount), type:'expense', sourceAct:'edit-expense', sourceId:e.id, deleteAct:'del-expense'}); });
+  DB.salaryPayments.forEach(p=>{ if(p.method!=='bank') rows.push({date:p.date, ts:p.createdAt||0, label:'Salary'+(p.type&&p.type!=='Salary'?' · '+p.type:''), sub:(DB.staff.find(s=>s.id===p.staffId)||{name:'Staff'}).name, inAmt:0, outAmt:num(p.amount), type:'salary', sourceAct:'edit-salary', sourceId:p.id, deleteAct:'del-salary'}); });
+  DB.drawings.forEach(d=>rows.push({date:d.date, ts:d.createdAt||0, label:'Partner drawing', sub:partnerById(d.partnerId).name, inAmt:0, outAmt:num(d.amount), type:'drawing', sourceAct:'edit-drawing', sourceId:d.id, deleteAct:'del-drawing'}));
   rows.sort((a,b)=> a.date===b.date ? (a.ts-b.ts) : (a.date<b.date?-1:1));
   let bal = 0;
   rows.forEach(r=>{ bal = round2(bal + r.inAmt - r.outAmt); r.balance = bal; });
@@ -2919,16 +2954,17 @@ function bankLedger(bankId){
   DB.cashEntries.forEach(c=>{
     if((c.type==='deposit' || c.type==='withdraw') && match(c)){
       const bid = bankIdOf(c);
-      if(c.type==='deposit') rows.push({date:c.date, ts:c.createdAt||0, bankId:bid, label:'Cash deposit', sub:c.label||'', inAmt:num(c.amount), outAmt:0});
-      else rows.push({date:c.date, ts:c.createdAt||0, bankId:bid, label:'Cash withdrawal', sub:c.label||'', inAmt:0, outAmt:num(c.amount)});
+      const meta = {sourceAct:'edit-cash-entry', sourceId:c.id, deleteAct:'del-cash'};
+      if(c.type==='deposit') rows.push({date:c.date, ts:c.createdAt||0, bankId:bid, label:'Cash deposit', sub:c.label||'', inAmt:num(c.amount), outAmt:0, ...meta});
+      else rows.push({date:c.date, ts:c.createdAt||0, bankId:bid, label:'Cash withdrawal', sub:c.label||'', inAmt:0, outAmt:num(c.amount), ...meta});
     }
   });
-  DB.purchases.forEach(p=>{ if(p.payMethod==='bank' && num(p.paid)>0 && match(p)) rows.push({date:p.date, ts:p.createdAt||0, bankId:bankIdOf(p), label:'Fuel purchase (bank)', sub:supplierById(p.supplierId).name, inAmt:0, outAmt:num(p.paid)}); });
-  DB.supplierPayments.forEach(p=>{ if(p.method==='bank' && match(p)) rows.push({date:p.date, ts:p.createdAt||0, bankId:bankIdOf(p), label:'Supplier payment (bank)', sub:supplierById(p.supplierId).name, inAmt:0, outAmt:num(p.amount)}); });
-  DB.expenses.forEach(e=>{ if(e.paidFrom==='bank' && match(e)) rows.push({date:e.date, ts:e.createdAt||0, bankId:bankIdOf(e), label:e.category, sub:'Paid from bank', inAmt:0, outAmt:num(e.amount)}); });
-  DB.salaryPayments.forEach(p=>{ if(p.method==='bank' && match(p)) rows.push({date:p.date, ts:p.createdAt||0, bankId:bankIdOf(p), label:'Salary (bank)', sub:(DB.staff.find(s=>s.id===p.staffId)||{name:'Staff'}).name, inAmt:0, outAmt:num(p.amount)}); });
-  DB.customerPayments.forEach(p=>{ if(p.method==='bank' && match(p)) rows.push({date:p.date, ts:p.createdAt||0, bankId:bankIdOf(p), label:'Customer receipt (bank)', sub:(customerById(p.customerId)||{name:'Customer'}).name, inAmt:num(p.amount), outAmt:0}); });
-  (DB.bankTx||[]).forEach(t=>{ if(match(t)) rows.push({date:t.date, ts:t.createdAt||0, bankId:t.bankId, label:(t.note || (t.type==='credit'?'Bank credit':'Bank debit')), sub:'Manual bank entry', inAmt:t.type==='credit'?num(t.amount):0, outAmt:t.type==='debit'?num(t.amount):0}); });
+  DB.purchases.forEach(p=>{ if(p.payMethod==='bank' && num(p.paid)>0 && match(p)) rows.push({date:p.date, ts:p.createdAt||0, bankId:bankIdOf(p), label:'Fuel purchase (bank)', sub:supplierById(p.supplierId).name, inAmt:0, outAmt:num(p.paid), sourceAct:'edit-purchase', sourceId:p.id, deleteAct:'del-purchase'}); });
+  DB.supplierPayments.forEach(p=>{ if(p.method==='bank' && match(p)) rows.push({date:p.date, ts:p.createdAt||0, bankId:bankIdOf(p), label:'Supplier payment (bank)', sub:supplierById(p.supplierId).name, inAmt:0, outAmt:num(p.amount), sourceAct:'edit-supplier-payment', sourceId:p.id, deleteAct:'del-supplier-payment'}); });
+  DB.expenses.forEach(e=>{ if(e.paidFrom==='bank' && match(e)) rows.push({date:e.date, ts:e.createdAt||0, bankId:bankIdOf(e), label:e.category, sub:'Paid from bank', inAmt:0, outAmt:num(e.amount), sourceAct:'edit-expense', sourceId:e.id, deleteAct:'del-expense'}); });
+  DB.salaryPayments.forEach(p=>{ if(p.method==='bank' && match(p)) rows.push({date:p.date, ts:p.createdAt||0, bankId:bankIdOf(p), label:'Salary (bank)', sub:(DB.staff.find(s=>s.id===p.staffId)||{name:'Staff'}).name, inAmt:0, outAmt:num(p.amount), sourceAct:'edit-salary', sourceId:p.id, deleteAct:'del-salary'}); });
+  DB.customerPayments.forEach(p=>{ if(p.method==='bank' && match(p)) rows.push({date:p.date, ts:p.createdAt||0, bankId:bankIdOf(p), label:'Customer receipt (bank)', sub:(customerById(p.customerId)||{name:'Customer'}).name, inAmt:num(p.amount), outAmt:0, sourceAct:'edit-customer-payment', sourceId:p.id, deleteAct:'del-customer-payment'}); });
+  (DB.bankTx||[]).forEach(t=>{ if(match(t)) rows.push({date:t.date, ts:t.createdAt||0, bankId:t.bankId, label:(t.note || (t.type==='credit'?'Bank credit':'Bank debit')), sub:'Manual bank entry', inAmt:t.type==='credit'?num(t.amount):0, outAmt:t.type==='debit'?num(t.amount):0, sourceAct:'edit-bank-tx', sourceId:t.id, deleteAct:'del-bank-tx'}); });
   rows.sort((a,b)=> a.date===b.date ? (a.ts-b.ts) : (a.date<b.date?-1:1));
   return rows;
 }
@@ -2985,29 +3021,57 @@ function pageCash(){
   '</div>'+
   '';
 }
-function openCashForm(presetType, presetBankId){
+function openCashForm(presetType, presetBankId, editId){
+  const e = editId ? DB.cashEntries.find(x=>x.id===editId) : null;
   openModal({
-    title:'Cash / bank entry', subtitle:'Record cash movements outside sales and purchases.',
+    title: e ? 'Edit cash / bank entry' : 'Cash / bank entry',
+    subtitle: e ? 'Changes update both the cash book and the selected bank.' : 'Record cash movements outside sales and purchases.',
+    submitLabel: e ? 'Save changes' : 'Save entry',
+    footLeft: e ? '<button type="button" class="btn red" data-act="del-cash" data-id="'+e.id+'">'+icon('trash',15)+' Delete</button>' : '',
     body:'<div class="form-grid">'+
-      dateField('date','Date',todayISO())+
+      dateField('date','Date',e?e.date:todayISO())+
       selectField('type','Entry type',[
         {value:'in',label:'Cash in (other income)'},
         {value:'out',label:'Cash out (other payment)'},
         {value:'deposit',label:'Deposit cash to bank'},
         {value:'withdraw',label:'Withdraw cash from bank'}
-      ],presetType||'in')+
-      bankFieldHTML(presetBankId, 'Bank account')+
-      inputField('label','Label',{placeholder:'e.g. generator sale, bank deposit',full:true})+
-      moneyField('amount','Amount', '', {required:true})+
-      inputField('note','Note',{full:true})+
+      ],e?e.type:(presetType||'in'))+
+      bankFieldHTML(e?e.bankId:presetBankId, 'Bank account')+
+      inputField('label','Label',{value:e?e.label||'':'',placeholder:'e.g. generator sale, bank deposit',full:true})+
+      moneyField('amount','Amount', e?e.amount:'', {required:true})+
+      inputField('note','Note',{value:e?e.note||'':'',full:true})+
     '</div>',
     onMount:function(form){ bindBankToggle(form, 'type', v=>v==='deposit'||v==='withdraw'); },
     onSubmit:function(fd){
       const amt=num(fd.amount);
       if(amt<=0) fail('Enter a valid amount.');
       const bankId = (fd.type==='deposit'||fd.type==='withdraw') ? resolvedBankId(fd.bankId) : null;
-      DB.cashEntries.push({id:uid('cash'), date:fd.date, type:fd.type, label:(fd.label||'').trim()|| (fd.type==='in'?'Cash in':fd.type==='out'?'Cash out':fd.type==='deposit'?'Bank deposit':'Bank withdrawal'), amount:round2(amt), bankId, note:fd.note||'', createdAt:Date.now()});
+      const rec = {
+        date:fd.date, type:fd.type,
+        label:(fd.label||'').trim()|| (fd.type==='in'?'Cash in':fd.type==='out'?'Cash out':fd.type==='deposit'?'Bank deposit':'Bank withdrawal'),
+        amount:round2(amt), bankId, note:fd.note||''
+      };
+      if(e) Object.assign(e, rec);
+      else DB.cashEntries.push(Object.assign({id:uid('cash'), createdAt:Date.now()}, rec));
       commit();
+      return {message: e?'Entry updated':'Entry saved'};
+    }
+  });
+}
+
+function openOpeningCashForm(){
+  openModal({
+    title:'Opening cash',
+    subtitle:'The cash balance before any entry in this app.',
+    submitLabel:'Save opening cash',
+    body:'<div class="form-grid">'+
+      moneyField('opening','Opening cash in hand', DB.settings.openingCash, {full:true})+
+    '</div>'+
+    '<div class="form-note">This changes the starting balance of the cash ledger only. Existing entries are not affected.</div>',
+    onSubmit:function(fd){
+      DB.settings.openingCash = round2(num(fd.opening));
+      save(); render();
+      return {message:'Opening cash updated'};
     }
   });
 }
@@ -3062,7 +3126,7 @@ function accountEntries(accountId){
       else if(outAmt > 0){ type='debit'; amount=outAmt; }
       else if(outAmt < 0){ type='credit'; amount=-outAmt; }
       if(!amount) return;
-      out.push({id:'cash_'+i, date:r.date, createdAt:r.ts||0, type, amount, note:r.label, sub:r.sub||'Cash Book', system:true});
+      out.push({id:'cash_'+i, date:r.date, createdAt:r.ts||0, type, amount, note:r.label, sub:r.sub||'Cash Book', system:true, sourceAct:r.sourceAct, sourceId:r.sourceId, deleteAct:r.deleteAct});
     });
     return out;
   }
@@ -3074,7 +3138,7 @@ function accountEntries(accountId){
       const openDate = created && !isNaN(created.getTime()) ? created.toISOString().slice(0,10) : '2000-01-01';
       out.push({id:'bank_open_'+bank.id, date:openDate, createdAt:0,
         type:num(bank.opening)>0?'credit':'debit', amount:Math.abs(num(bank.opening)),
-        note:'Opening bank balance', sub:bank.name, system:true});
+        note:'Opening bank balance', sub:bank.name, system:true, sourceAct:'edit-bank', sourceId:bank.id});
     }
     bankLedger(bank.id).forEach((r,i)=>{
       const inAmt = num(r.inAmt), outAmt = num(r.outAmt);
@@ -3084,7 +3148,7 @@ function accountEntries(accountId){
       else if(outAmt > 0){ type='debit'; amount=outAmt; }
       else if(outAmt < 0){ type='credit'; amount=-outAmt; }
       if(!amount) return;
-      out.push({id:'bank_'+bank.id+'_'+i, date:r.date, createdAt:r.ts||0, type, amount, note:r.label, sub:r.sub||bank.name, system:true});
+      out.push({id:'bank_'+bank.id+'_'+i, date:r.date, createdAt:r.ts||0, type, amount, note:r.label, sub:r.sub||bank.name, system:true, sourceAct:r.sourceAct, sourceId:r.sourceId, deleteAct:r.deleteAct});
     });
     return out;
   }
@@ -3096,16 +3160,16 @@ function accountEntries(accountId){
       const openDate = created && !isNaN(created.getTime()) ? created.toISOString().slice(0,10) : '2000-01-01';
       const credit = num(s.openingBalance) > 0;
       out.push({id:'sup_open', date:openDate, createdAt:0, type:credit?'credit':'debit',
-        amount:Math.abs(num(s.openingBalance)), note:'Opening balance', sub:'Supplier', system:true});
+        amount:Math.abs(num(s.openingBalance)), note:'Opening balance', sub:'Supplier', system:true, sourceAct:'edit-supplier', sourceId:s.id});
     }
     DB.purchases.filter(p=>p.supplierId===s.id).forEach(p=>{
       out.push({id:'sup_p_'+p.id, date:p.date, createdAt:p.createdAt||0, type:'credit',
         amount:num(p.amount), note:'Purchase · '+productById(p.product).name+' · '+litres(p.litres),
-        sub:(p.invoice?p.invoice+' · ':'')+'Fuel purchase', system:true, sourceAct:'edit-purchase', sourceId:p.id});
+        sub:(p.invoice?p.invoice+' · ':'')+'Fuel purchase', system:true, sourceAct:'edit-purchase', sourceId:p.id, deleteAct:'del-purchase'});
       if(num(p.paid) > 0){
         out.push({id:'sup_pp_'+p.id, date:p.date, createdAt:(p.createdAt||0)+1, type:'debit',
           amount:num(p.paid), note:'Paid at purchase',
-          sub:(p.payMethod==='bank'?'Bank · '+bankNameOf(p.bankId):'Cash')+' · '+s.name, system:true, sourceAct:'edit-purchase', sourceId:p.id});
+          sub:(p.payMethod==='bank'?'Bank · '+bankNameOf(p.bankId):'Cash')+' · '+s.name, system:true, sourceAct:'edit-purchase', sourceId:p.id, deleteAct:'del-purchase'});
       }
     });
     DB.supplierPayments.filter(p=>p.supplierId===s.id).forEach(p=>{
@@ -3120,7 +3184,7 @@ function accountEntries(accountId){
     DB.sales.filter(s=>s.customerId===acc.customerId && num(s.credit)>0).forEach(s=>{
       out.push({id:'cus_s_'+s.id, date:s.date, createdAt:s.createdAt||0, type:'credit',
         amount:num(s.credit), note:'Credit sale · '+productById(s.product).name+' · '+litres(s.litres),
-        sub:'Sale'+(s.note?' · '+s.note:''), system:true, sourceAct:'edit-sale', sourceId:s.id});
+        sub:'Sale'+(s.note?' · '+s.note:''), system:true, sourceAct:'edit-sale', sourceId:s.id, deleteAct:'del-sale'});
     });
     DB.customerPayments.filter(p=>p.customerId===acc.customerId).forEach(p=>{
       out.push({id:'cus_p_'+p.id, date:p.date, createdAt:p.createdAt||0, type:'debit',
@@ -3738,6 +3802,42 @@ function confirmDeleteBank(id){
     }
   });
 }
+function openBankTxForm(id){
+  const t = DB.bankTx.find(x=>x.id===id);
+  if(!t) return;
+  openModal({
+    title:'Edit manual bank entry',
+    subtitle: bankNameOf(t.bankId),
+    submitLabel:'Save changes',
+    footLeft: '<button type="button" class="btn red" data-act="del-bank-tx" data-id="'+t.id+'">'+icon('trash',15)+' Delete</button>',
+    body:'<div class="form-grid">'+
+      dateField('date','Date',t.date)+
+      selectField('type','Type',[{value:'credit',label:'Credit (+) — add to bank'},{value:'debit',label:'Debit (−) — reduce bank'}],t.type||'credit')+
+      moneyField('amount','Amount', t.amount, {required:true})+
+      inputField('note','Description',{value:t.note||'',full:true})+
+    '</div>',
+    onSubmit:function(fd){
+      const amt = num(fd.amount);
+      if(amt <= 0) fail('Enter an amount greater than zero.');
+      Object.assign(t, {date:fd.date, type:fd.type==='debit'?'debit':'credit', amount:round2(amt), note:(fd.note||'').trim()});
+      save(); render();
+      return {message:'Bank entry updated'};
+    }
+  });
+}
+function confirmDeleteBankTx(id){
+  const t = DB.bankTx.find(x=>x.id===id);
+  if(!t) return;
+  openModal({
+    title:'Delete bank entry?', subtitle:'This cannot be undone.', submitLabel:'Delete',
+    body:'<div class="alert red">'+icon('alert',17)+'<div>This manual bank entry of <b>'+money(t.amount)+'</b> will be removed.</div></div>',
+    onSubmit:function(){
+      DB.bankTx = DB.bankTx.filter(x=>x.id!==id);
+      save(); render();
+      return {message:'Bank entry deleted'};
+    }
+  });
+}
 function openTankForm(id){
   const t = id ? DB.tanks.find(x=>x.id===id) : null;
   openModal({
@@ -3899,6 +3999,7 @@ function openBackupText(){
   const kb = Math.max(1, Math.round(json.length / 1024));
   const canShare = typeof navigator.share === 'function';
   const canDownload = !isNativeApp();
+  const canNativeShare = canNativeShareBackup();
   openModal({
     title:'Backup text',
     subtitle:'Complete backup · '+kb+' KB · keep it outside this phone',
@@ -3907,11 +4008,12 @@ function openBackupText(){
       '<textarea id="backup-json" readonly style="min-height:260px;font-family:ui-monospace,Consolas,monospace;font-size:11px;line-height:1.45;white-space:pre">'+esc(json)+'</textarea>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
         '<button type="button" class="btn block" data-act="copy-backup">'+icon('file',15)+' Copy all</button>'+
+        (canNativeShare ? '<button type="button" class="btn green" data-act="share-backup-file">'+icon('upload',15)+' Share file</button>' : '')+
         (canShare ? '<button type="button" class="btn ghost" data-act="share-backup-text">'+icon('upload',15)+' Share…</button>' : '')+
         (canDownload ? '<button type="button" class="btn ghost" data-act="download-backup-file">'+icon('download',15)+' Download file</button>' : '')+
         '<button type="button" class="btn ghost" data-act="close-modal">Close</button>'+
       '</div>'+
-      '<div class="form-note">Tap <b>Copy all</b>, then paste it into WhatsApp (message yourself), an email to yourself, or a notes app. If WhatsApp refuses a message this large, use email or notes. To put the data back later, open <b>Restore from text</b> and paste this text.</div>'
+      '<div class="form-note">Tap <b>Copy all</b>, then paste it into WhatsApp (message yourself), an email to yourself, or a notes app. '+(canNativeShare?'Or tap <b>Share file</b> and choose WhatsApp — that sends the backup as a .json file. ':'')+'If WhatsApp refuses a message this large, use email or notes. To put the data back later, open <b>Restore from text</b> and paste this text.</div>'
   });
 }
 function downloadBackupFromModal(){
@@ -3920,6 +4022,19 @@ function downloadBackupFromModal(){
   const name = 'ghufran-khalil-hisab-' + todayISO() + '.json';
   downloadFile(name, ta.value, 'application/json');
   toast('Backup file downloaded','ok');
+}
+function canNativeShareBackup(){
+  return !!(window.AndroidShare && typeof window.AndroidShare.shareBackup === 'function');
+}
+function shareBackupFileNative(){
+  const ta = $('#backup-json');
+  if(!ta) return;
+  try {
+    window.AndroidShare.shareBackup(ta.value);
+    toast('Choose WhatsApp to share the backup file','ok');
+  } catch(e){
+    toast('Could not open the share sheet','err');
+  }
 }
 function shareBackupText(){
   const ta = $('#backup-json');
@@ -4086,6 +4201,25 @@ function setMonth(el){
 }
 
 /* ---------------- BOOT ---------------- */
+window.__androidBack = function(){
+  try {
+    if($('#modal-root') && $('#modal-root').classList.contains('open')){ closeModal(); return true; }
+    if(UI.moreOpen){ closeSheet(); return true; }
+    if(UI.page === 'accounts' && UI.accId){
+      UI.accId = null; UI.accTxSearch = '';
+      render(); window.scrollTo({top:0, behavior:'instant'});
+      return true;
+    }
+    if(UI.page !== 'dashboard'){
+      const prev = UI.navStack.length ? UI.navStack.pop() : 'dashboard';
+      UI.page = prev;
+      UI.accId = null; UI.moreOpen = false; closeSheet();
+      render(); window.scrollTo({top:0, behavior:'instant'});
+      return true;
+    }
+  } catch(e){}
+  return false;
+};
 (function boot(){
   applyTheme();
   document.title = DB.settings.pumpName + ' — Hisab';
