@@ -364,6 +364,8 @@ html[data-theme="dark"] #toast-root{bottom:96px}
 .acc-sums .as{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow);min-width:0}
 .acc-sums .as span{display:block;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .acc-sums .as b{display:block;font-size:16px;font-weight:850;margin-top:3px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.acc-sums .as b.up{color:var(--green)} .acc-sums .as b.down{color:var(--red)}
+.pl-cap{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:8px}
 .acct-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
 .acct-card{cursor:pointer;transition:.15s;display:flex;flex-direction:column;gap:12px;min-width:0}
 .acct-card:hover{transform:translateY(-1px);border-color:#cdd6e1}
@@ -1602,6 +1604,8 @@ function pageDashboard(){
   const lowPetrol = stP.capacity && stP.book/stP.capacity < 0.15;
   const lowDiesel = stD.capacity && stD.book/stD.capacity < 0.15;
 
+  const plCell = (label, value, cls) => '<div class="as"><span>'+label+'</span><b class="num '+(cls||'')+'">'+money0(value)+'</b></div>';
+
   const nozzleCards = DB.nozzles.map(nz=>{
     const last = latestMeter(nz.id);
     const prod = productById(nz.product);
@@ -1628,9 +1632,30 @@ function pageDashboard(){
     '</div>'+
     '<div class="hero-stats">'+
       '<div class="hero-stat"><div class="l">Cash collected today</div><div class="v num">'+money0(today.cash)+'</div><div class="s">'+(today.count?today.count+(today.count===1?' meter entry':' meter entries'):'No entries yet')+'</div></div>'+
-      '<div class="hero-stat"><div class="l">Profit today</div><div class="v num">'+money0(todayP.net)+'</div><div class="s">after fuel cost &amp; expenses</div></div>'+
-      '<div class="hero-stat"><div class="l">Profit this month</div><div class="v num">'+money0(p.net)+'</div><div class="s">'+(p.netMargin>=0?'+':'')+p.netMargin.toFixed(1)+'% net margin</div></div>'+
+      '<div class="hero-stat"><div class="l">Net profit today</div><div class="v num">'+money0(todayP.net)+'</div><div class="s">profit after expenses</div></div>'+
+      '<div class="hero-stat"><div class="l">Net profit this month</div><div class="v num">'+money0(p.net)+'</div><div class="s">'+(p.netMargin>=0?'+':'')+p.netMargin.toFixed(1)+'% net margin</div></div>'+
       '<div class="hero-stat"><div class="l">Loan outstanding</div><div class="v num">'+money0(loan)+'</div><div class="s">Ghufran → Khalil</div></div>'+
+    '</div>'+
+  '</div>'+
+
+  '<div class="card" style="margin-top:14px">'+
+    '<div class="card-head"><div><h3>Profit &amp; loss</h3><p>Total profit, total expense and net profit</p></div><button class="link-btn no-print" data-act="nav" data-page="reports">Full report</button></div>'+
+    '<div class="card-body" style="display:flex;flex-direction:column;gap:14px">'+
+      '<div><div class="pl-cap">This month · '+monthName(mk)+'</div>'+
+        '<div class="acc-sums">'+
+          plCell('Total profit', p.gross, p.gross>=0?'up':'down')+
+          plCell('Total expense', p.expenses, 'down')+
+          plCell('Net profit', p.net, p.net>=0?'up':'down')+
+        '</div>'+
+      '</div>'+
+      '<div class="divider" style="margin:0"></div>'+
+      '<div><div class="pl-cap">Today · '+fmtDate(todayISO())+'</div>'+
+        '<div class="acc-sums">'+
+          plCell('Total profit', todayP.gross, todayP.gross>=0?'up':'down')+
+          plCell('Total expense', todayP.expenses, 'down')+
+          plCell('Net profit', todayP.net, todayP.net>=0?'up':'down')+
+        '</div>'+
+      '</div>'+
     '</div>'+
   '</div>'+
 
