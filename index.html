@@ -890,7 +890,8 @@ function seedData(){
     meta:{ version:1, createdAt:new Date().toISOString(), app:APP_NAME },
     settings:{
       pumpName:'',
-      address:'', phone:'', openingCash:0, openingBank:0, theme:'light'
+      address:'', phone:'', openingCash:0, openingBank:0, theme:'light',
+      loansEnabled:false, loansInitialized:true
     },
     partners:[
       {id:'p1', name:'', role:'Managing Partner', share:50},
@@ -934,6 +935,36 @@ function seedData(){
     cashEntries:[]
   };
 }
+function legacyLoanSeed(db){
+  // Recreates the old "second partner owes the first partner" loan once, for
+  // accounts that were created before loans became explicit records.
+  if(!db || (db.loans || []).length) return false;
+  const partners = db.partners || [];
+  if(partners.length < 2) return false;
+  const lender = partners[0];
+  const borrower = partners[1];
+  const capital = sum(db.investments || [], function(i){
+    const eff = (i.kind === 'withdrawal' ? -1 : 1) * num(i.amount);
+    if(i.split === 'both') return eff * (num(borrower.share) / 100);
+    return i.partnerId === borrower.id ? eff : 0;
+  });
+  const hasRepayments = (db.loanRepayments || []).length > 0;
+  if(capital <= 0.004 && !hasRepayments) return false;
+  db.loans = db.loans || [];
+  const firstInv = (db.investments || []).slice().sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; })[0];
+  const loan = {
+    id:uid('loan'), lenderId:lender.id, borrowerId:borrower.id,
+    principal:0, linkCapital:true,
+    date:(firstInv && firstInv.date) || todayISO(),
+    note:'Investment share funded by ' + (lender.name || 'the first partner'),
+    createdAt:Date.now()
+  };
+  db.loans.push(loan);
+  (db.loanRepayments || []).forEach(function(r){ if(!r.loanId) r.loanId = loan.id; });
+  db.settings = db.settings || {};
+  db.settings.loansEnabled = true;
+  return true;
+}
 function migrate(data){
   const base = seedData();
   if(!data || typeof data !== 'object') return base;
@@ -944,7 +975,21 @@ function migrate(data){
     if(!Array.isArray(out[k])) out[k] = base[k];
   });
   out.rates = Object.assign({}, base.rates, data.rates||{});
-  out.loans = []; // loans are calculated from the borrowing partner's investment share
+  // ---- partner loans ----
+  // Loans are explicit records now: any partner can lend to any other partner.
+  // Older versions derived a single loan from the second partner's capital, so
+  // the first time we see old data we recreate that arrangement as a real loan
+  // and attach every existing repayment to it. Nothing changes for that user.
+  out.settings.loansEnabled = !!out.settings.loansEnabled;
+  out.loans = (out.loans || []).filter(l => l && l.lenderId && l.borrowerId);
+  const rawSettings = (data && data.settings) || {};
+  if(rawSettings.loansInitialized === undefined){
+    legacyLoanSeed(out);
+    out.settings.loansInitialized = true;
+  }
+  // Older repayments had no loan link. Keep them counted on the first loan.
+  const firstLoan = out.loans[0];
+  (out.loanRepayments || []).forEach(r => { if(!r.loanId && firstLoan) r.loanId = firstLoan.id; });
   // Cash and bank are live accounts now. Drop the old empty manual cash account.
   if(Array.isArray(out.accounts)){
     const oldCash = out.accounts.find(a=>a.id==='acc_cash');
@@ -994,11 +1039,14 @@ try {
     }
     // One-time upgrade: the loan is now calculated from the borrowing partner's investment share, not fixed.
     if(localStorage.getItem('gkpp_derived_loan_v1') !== '1'){
-      DB.loans = [];
       localStorage.setItem('gkpp_derived_loan_v1', '1');
-      upgraded = true;
     }
     if(upgraded) localStorage.setItem(DB_KEY, JSON.stringify(DB));
+  }
+  // Old data has just been given its legacy partner loan. Persist it straight
+  // away so a quick close does not lose the migration.
+  if(raw && !(JSON.parse(raw).settings || {}).loansInitialized){
+    localStorage.setItem(DB_KEY, JSON.stringify(DB));
   }
 } catch(e){ DB = seedData(); }
 
@@ -1045,8 +1093,44 @@ function partnerName(id, fallback){
   const p = partnerById(id);
   return p && p.name && String(p.name).trim() ? String(p.name).trim() : (fallback || 'Partner');
 }
-function funderName(){ return partnerName('p1', 'Partner 1'); }
-function borrowerName(){ return partnerName('p2', 'Partner 2'); }
+function partnerTone(id){
+  const i = DB.partners.findIndex(p=>p.id===id);
+  return ['a','b','c'][(i < 0 ? 0 : i) % 3];
+}
+/* ---------------- partner loans (explicit, optional) ---------------- */
+function loansEnabled(){ return !!(DB && DB.settings && DB.settings.loansEnabled); }
+function loanPrincipalOf(l){
+  if(!l) return 0;
+  if(l.linkCapital) return round2(Math.max(0, partnerCapital(l.borrowerId)));
+  return round2(Math.max(0, num(l.principal)));
+}
+function loanRepaidOf(l){
+  if(!l) return 0;
+  return round2(sum(DB.loanRepayments.filter(r=>r.loanId===l.id), r=>r.amount));
+}
+function loanOutstandingOf(l){
+  return round2(Math.max(0, loanPrincipalOf(l) - loanRepaidOf(l)));
+}
+function loanIsActive(l){
+  if(!loansEnabled() || !l) return false;
+  return loanPrincipalOf(l) > 0 || loanRepaidOf(l) > 0;
+}
+function activeLoans(){ return (DB.loans || []).filter(loanIsActive); }
+function totalLoanOutstanding(){ return round2(sum(activeLoans(), loanOutstandingOf)); }
+function loansForBorrower(id){ return activeLoans().filter(l=>l.borrowerId===id); }
+function outstandingForBorrower(id){ return round2(sum(loansForBorrower(id), loanOutstandingOf)); }
+function lenderNamesFor(id){
+  const names = [];
+  loansForBorrower(id).forEach(l=>{
+    const n = partnerName(l.lenderId, 'partner');
+    if(names.indexOf(n) < 0) names.push(n);
+  });
+  return names.join(', ');
+}
+function loanLabel(l){
+  if(!l) return 'Partner loan';
+  return partnerName(l.borrowerId, 'Partner') + ' owes ' + partnerName(l.lenderId, 'Partner');
+}
 function productById(id){ return DB.products.find(p=>p.id===id) || {id:id, name:id, color:'#999'}; }
 function nozzleById(id){ return DB.nozzles.find(n=>n.id===id); }
 function supplierById(id){ return DB.suppliers.find(s=>s.id===id) || {name:'—'}; }
@@ -1391,9 +1475,17 @@ document.addEventListener('click', function(e){
     case 'withdraw-investment': openInvestmentForm('withdrawal'); break;
     case 'del-investment': confirmDelete('investment', id); break;
 
-    case 'repay-loan': openLoanRepaymentForm(); break;
-    case 'repay-loan-suggested': openLoanRepaymentForm(num(el.getAttribute('data-amount'))); break;
+    case 'repay-loan': openLoanRepaymentForm({
+      loanId: el.getAttribute('data-loan') || '',
+      borrowerId: el.getAttribute('data-borrower') || '',
+      amount: num(el.getAttribute('data-amount'))
+    }); break;
+    case 'repay-loan-suggested': recordLoanRecovery(el.getAttribute('data-borrower') || '', num(el.getAttribute('data-amount'))); break;
+    case 'new-loan': openLoanForm(); break;
+    case 'del-loan': confirmDeleteLoan(id); break;
     case 'del-repayment': confirmDelete('loanRepayment', id); break;
+    case 'add-partner': addPartner(); break;
+    case 'del-partner': confirmRemovePartner(id); break;
     case 'new-drawing': openDrawingForm(); break;
     case 'edit-drawing': openDrawingForm(id); break;
     case 'del-drawing': confirmDelete('drawing', id); break;
@@ -1468,6 +1560,11 @@ document.addEventListener('change', function(e){
   if(what === 'report-month'){ UI.reportMonth = el.value; render(); }
   if(what === 'sales-search'){ UI.salesSearch = el.value; renderSalesRowsOnly(); }
   if(what === 'purch-tab'){ UI.purchTab = el.value; render(); }
+  if(what === 'onb-loan-toggle'){
+    ONB.draft.loan.enabled = !!el.checked;
+    const f = $('#onb-loan-fields');
+    if(f) f.style.display = el.checked ? 'grid' : 'none';
+  }
 });
 /* ==========================================================================
    CALCULATIONS
@@ -1767,7 +1864,10 @@ function allActivity(){
   DB.expenses.forEach(x=>rows.push({date:x.date, ts:x.createdAt||0, type:'Expense', title:x.category, sub:x.description||'Expense', amount:-x.amount, tone:'red', icon:'receipt'}));
   DB.salaryPayments.forEach(p=>rows.push({date:p.date, ts:p.createdAt||0, type:'Salary', title:'Salary · '+(DB.staff.find(s=>s.id===p.staffId)||{name:'Staff'}).name, sub:p.type||'Salary', amount:-p.amount, tone:'red', icon:'users'}));
   DB.drawings.forEach(d=>rows.push({date:d.date, ts:d.createdAt||0, type:'Drawing', title:'Drawing · '+partnerById(d.partnerId).name, sub:d.note||'Partner withdrawal', amount:-d.amount, tone:'amber', icon:'wallet'}));
-  DB.loanRepayments.forEach(r=>rows.push({date:r.date, ts:r.createdAt||0, type:'Loan repayment', title:'Loan repayment received', sub:r.note||('From '+borrowerName()), amount:r.amount, tone:'violet', icon:'handshake'}));
+  DB.loanRepayments.forEach(r=>{
+    const ln = (DB.loans||[]).find(l=>l.id===r.loanId);
+    rows.push({date:r.date, ts:r.createdAt||0, type:'Loan repayment', title:'Loan repayment', sub:r.note||(ln?loanLabel(ln):'Partner loan repayment'), amount:r.amount, tone:'violet', icon:'handshake'});
+  });
   DB.investments.forEach(i=>{
     const eff = invAmount(i);
     rows.push({date:i.date, ts:i.createdAt||0, type:eff<0?'Withdrawal':'Capital', title:(eff<0?'Capital withdrawn':'Investment')+' · '+(i.split==='both'?'Shared':partnerById(i.partnerId).name), sub:i.label||'', amount:eff, tone:'amber', icon:'bank'});
@@ -1811,7 +1911,7 @@ function pageDashboard(){
   const cash = cashInHand();
   const stockVal = totalStockValue();
   const stP = stockOf('petrol'), stD = stockOf('diesel');
-  const loan = loanOutstanding();
+  const loan = totalLoanOutstanding();
   const payables = totalPayables();
   const receivables = totalReceivables();
   const hour = new Date().getHours();
@@ -1852,7 +1952,9 @@ function pageDashboard(){
       '<div class="hero-stat"><div class="l">Cash collected today</div><div class="v num">'+money0(today.cash)+'</div><div class="s">'+(today.count?today.count+(today.count===1?' meter entry':' meter entries'):'No entries yet')+'</div></div>'+
       '<div class="hero-stat"><div class="l">Net profit today</div><div class="v num">'+money0(todayP.net)+'</div><div class="s">profit after expenses</div></div>'+
       '<div class="hero-stat"><div class="l">Net profit this month</div><div class="v num">'+money0(p.net)+'</div><div class="s">'+(p.netMargin>=0?'+':'')+p.netMargin.toFixed(1)+'% net margin</div></div>'+
-      '<div class="hero-stat"><div class="l">Loan outstanding</div><div class="v num">'+money0(loan)+'</div><div class="s">'+esc(borrowerName())+' → '+esc(funderName())+'</div></div>'+
+      (activeLoans().length
+        ? '<div class="hero-stat"><div class="l">Partner loans</div><div class="v num">'+money0(loan)+'</div><div class="s">'+activeLoans().length+(activeLoans().length===1?' loan':' loans')+' outstanding</div></div>'
+        : '<div class="hero-stat"><div class="l">Cash in hand</div><div class="v num">'+money0(cash)+'</div><div class="s">in the drawer</div></div>')+
     '</div>'+
   '</div>'+
 
@@ -1929,7 +2031,7 @@ function pageDashboard(){
       '<div class="card-head"><div><h3>Dues & alerts</h3><p>Keep an eye on these</p></div></div>'+
       '<div class="card-body" style="display:flex;flex-direction:column;gap:10px">'+
         (cash<0?'<div class="alert red">'+icon('alert',16)+'<div><b>Cash in hand is negative.</b> Check opening cash in Settings, or look for a purchase/expense paid twice.</div></div>':'')+
-        (loan>0?'<div class="alert violet" style="background:var(--violet-soft);border-color:color-mix(in srgb,var(--violet) 25%,transparent);color:#5b23b8"><div style="flex:1"><b>'+money0(loan)+'</b> loan still to be recovered from '+esc(borrowerName())+'\'s profit share.</div></div>':'<div class="alert green"><div style="flex:1">Loan to '+esc(borrowerName())+' is fully settled.</div></div>')+
+        (activeLoans().length ? (loan>0?'<div class="alert violet" style="background:var(--violet-soft);border-color:color-mix(in srgb,var(--violet) 25%,transparent);color:#5b23b8"><div style="flex:1"><b>'+money0(loan)+'</b> still to be recovered on partner loans.</div></div>':'<div class="alert green"><div style="flex:1">All partner loans are settled.</div></div>') : '')+
         '<div class="stat-line"><span class="k">'+icon('truck',14)+' Supplier payables</span><span class="v num">'+money0(payables)+'</span></div>'+
         '<div class="stat-line"><span class="k">'+icon('users',14)+' Customer credit</span><span class="v num">'+money0(receivables)+'</span></div>'+
         '<div class="stat-line"><span class="k">'+icon('calendar',14)+' Today\'s expenses</span><span class="v num">'+money0(sum(DB.expenses.filter(x=>isToday(x.date)),x=>x.amount)+sum(DB.salaryPayments.filter(x=>isToday(x.date)),x=>x.amount))+'</span></div>'+
@@ -2839,24 +2941,21 @@ function partnerCapital(partnerId){
 function totalCapital(){ return round2(sum(DB.investments, i=>invAmount(i))); }
 function totalInvested(){ return round2(sum(DB.investments.filter(i=>invAmount(i) > 0), i=>invAmount(i))); }
 function totalWithdrawn(){ return round2(sum(DB.investments.filter(i=>invAmount(i) < 0), i=>-invAmount(i))); }
-// The borrowing partner's share of the net investment is funded by the other
-// partner, so it is treated as a loan. Example: Rs 10 lac invested, 50% share
-// -> the borrowing partner owes Rs 5 lac.
-function loanPrincipal(){ return round2(Math.max(0, partnerCapital('p2'))); }
-function loanTotal(){ return loanPrincipal(); }
-function loanRepaid(){ return round2(sum(DB.loanRepayments,r=>r.amount)); }
-function loanOutstanding(){ return round2(Math.max(0, loanPrincipal() - loanRepaid())); }
+// Loans are explicit records in DB.loans. See loanPrincipalOf / activeLoans.
 function pagePartners(){
   const mk = currentMonth();
   const st = settlement(mk);
-  const loan = loanOutstanding();
-  const tab = UI.partnersTab;
+  const tab = UI.partnersTab === 'loan' && !loansEnabled() ? 'capital' : UI.partnersTab;
+  const tabs = [['capital','Capital']]
+    .concat(loansEnabled() ? [['loan','Loan']] : [])
+    .concat([['drawings','Drawings'],['settlement','Settlement']]);
   const cards = DB.partners.map((p,idx)=>{
     const cap = partnerCapital(p.id);
     const row = st.rows.find(r=>r.partner.id===p.id) || {share:0,drawn:0,net:0};
+    const owed = outstandingForBorrower(p.id);
     return '<div class="card card-pad">'+
       '<div style="display:flex;align-items:center;gap:11px">'+
-        '<div class="partner-avatar '+(idx===0?'a':'b')+'" style="width:42px;height:42px;border-radius:13px">'+esc(initials(p.name))+'</div>'+
+        '<div class="partner-avatar '+partnerTone(p.id)+'" style="width:42px;height:42px;border-radius:13px">'+esc(initials(p.name))+'</div>'+
         '<div style="flex:1;min-width:0"><div class="row-title">'+esc(p.name)+'</div><div class="row-sub">'+esc(p.role||'Partner')+' · '+p.share+'% share</div></div>'+
         '<span class="badge amber">'+p.share+'%</span></div>'+
       '<div class="divider"></div>'+
@@ -2864,18 +2963,18 @@ function pagePartners(){
       '<div class="stat-line"><span class="k">Profit share · '+monthName(mk)+'</span><span class="v num">'+money0(row.share)+'</span></div>'+
       '<div class="stat-line"><span class="k">Drawings this month</span><span class="v num">'+money0(row.drawn)+'</span></div>'+
       '<div class="stat-line" style="border-top:1px dashed var(--line);margin-top:5px;padding-top:9px"><span class="k strong" style="color:var(--ink)">Net payable</span><span class="v num" style="font-size:15px">'+money0(row.net)+'</span></div>'+
-      (p.id==='p2' && loan>0 ? '<div class="alert amber" style="margin-top:10px;padding:8px 10px"><div>Owes '+esc(funderName())+' <b>'+money0(loan)+'</b> on loan</div></div>' : '')+
+      (owed>0 ? '<div class="alert amber" style="margin-top:10px;padding:8px 10px"><div>Loan outstanding <b>'+money0(owed)+'</b> to '+esc(lenderNamesFor(p.id))+'</div></div>' : '')+
     '</div>';
   }).join('');
   return ''+
   '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">'+
-    '<div class="tb-sub" style="font-size:12px">Investments, partner loan, drawings and monthly settlement</div>'+
+    '<div class="tb-sub" style="font-size:12px">Investments, partner loans, drawings and monthly settlement</div>'+
     pageActions('<button class="btn ghost" data-act="new-drawing">'+icon('wallet',15)+' Drawing</button><button class="btn" data-act="new-investment">'+icon('plus',16)+' Add investment</button>')+
   '</div>'+
   '<div class="grid k2">'+cards+'</div>'+
   '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:18px 0 12px">'+
     '<div class="tabs">'+
-      [['capital','Capital'],['loan','Loan'],['drawings','Drawings'],['settlement','Settlement']].map(t=>'<button class="'+(tab===t[0]?'on':'')+'" data-act="tab" data-tab="partners" data-v="'+t[0]+'">'+t[1]+'</button>').join('')+
+      tabs.map(t=>'<button class="'+(tab===t[0]?'on':'')+'" data-act="tab" data-tab="partners" data-v="'+t[0]+'">'+t[1]+'</button>').join('')+
     '</div>'+
     (tab==='settlement'?monthPicker(UI.settleMonth,'settle-month'):'')+
   '</div>'+
@@ -2895,9 +2994,9 @@ function capitalTabHTML(){
         '<div class="tiny muted">'+(invested?'Invested '+money0(invested):'No investment added yet')+(withdrawn?' · withdrawn '+money0(withdrawn):'')+'</div>'+
         '<div class="divider"></div>'+
         DB.partners.map(p=>'<div class="stat-line"><span class="k">'+esc(p.name)+' <span class="tiny muted">('+p.share+'%)</span></span><span class="v num">'+money0(partnerCapital(p.id))+'</span></div>').join('')+
-        '<div class="stat-line" style="border-top:1px dashed var(--line);padding-top:8px"><span class="k">Loan outstanding</span><span class="v num">'+money0(loanOutstanding())+'</span></div>'+
+        (loansEnabled() ? '<div class="stat-line" style="border-top:1px dashed var(--line);padding-top:8px"><span class="k">Partner loans outstanding</span><span class="v num">'+money0(totalLoanOutstanding())+'</span></div>' : '')+
         '<div style="display:flex;gap:8px;margin-top:14px"><button class="btn block" data-act="new-investment">'+icon('plus',15)+' Add investment</button><button class="btn ghost" data-act="withdraw-investment">'+icon('minus',15)+' Withdraw</button></div>'+
-        '<div class="form-note" style="margin-top:10px">Every investment is shared between both partners in the ratio above ('+shareText+'). '+esc(partnerById('p2').name)+'\'s share is automatically treated as his loan from '+esc(partnerById('p1').name)+'. Withdrawals reduce both the total and the loan.</div>'+
+        '<div class="form-note" style="margin-top:10px">Every investment is shared between the partners in the ratio above ('+shareText+'). Withdrawals reduce both the total and each partner\'s capital.'+(loansEnabled()?' Loans are tracked separately in the Loan tab, so investing here does not change a fixed loan.':'')+'</div>'+
       '</div></div>'+
     '<div class="card"><div class="card-head"><div><h3>Investment entries</h3><p>Every rupee with a label</p></div>'+
       '<div class="row-actions no-print"><button class="btn sm ghost" data-act="withdraw-investment">'+icon('minus',14)+' Withdraw</button><button class="btn sm ghost" data-act="new-investment">'+icon('plus',14)+' Add</button></div></div>'+
@@ -2906,61 +3005,69 @@ function capitalTabHTML(){
           const eff = invAmount(i);
           const both = i.split === 'both';
           const p = both ? null : partnerById(i.partnerId);
-          const av = 'partner-avatar '+(both ? 'c' : (p.id === 'p1' ? 'a' : 'b'));
+          const av = 'partner-avatar '+(both ? 'c' : partnerTone(p.id));
           return '<div class="row">'+
             '<div class="'+av+'" style="width:34px;height:34px;border-radius:10px">'+icon(eff<0?'minus':'bank',16)+'</div>'+
             '<div class="row-main"><div class="row-title">'+esc(i.label || (eff<0?'Capital withdrawal':'Investment'))+(eff<0?' <span class="badge red">Withdrawal</span>':'')+'</div>'+
             '<div class="row-sub"><span>'+esc(both?'Shared '+shareText:(p.name))+'</span><span>·</span><span>'+fmtDate(i.date)+'</span></div></div>'+
             '<div class="row-right"><div class="row-amt '+(eff<0?'neg':'pos')+' num">'+(eff<0?'−':'+')+money(Math.abs(eff))+'</div><div class="tiny muted">'+(i.inCash===false?'Not in cash':eff<0?'Cash paid out':'Added to cash')+'</div></div>'+
             '<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-investment" data-id="'+i.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div></div>';
-        }).join('')+'</div>':emptyState('bank','No investment yet','Investment starts at zero. Add the first amount you put into the pump — it is shared between both partners.','<button class="btn sm" data-act="new-investment">Add investment</button>'))+
+        }).join('')+'</div>':emptyState('bank','No investment yet','Investment starts at zero. Add the first amount you put into the pump — it is shared between the partners by their ratio.','<button class="btn sm" data-act="new-investment">Add investment</button>'))+
       '</div></div>'+
   '</div>';
 }
 function loanTabHTML(){
-  const principal = loanPrincipal(), repaid = loanRepaid(), out = loanOutstanding();
-  const over = Math.max(0, round2(repaid - principal));
-  const pctRepaid = principal ? clamp(pct(repaid,principal),0,100) : 0;
-  const reps = DB.loanRepayments.slice().sort((a,b)=> a.date===b.date ? (b.createdAt||0)-(a.createdAt||0) : (a.date<b.date?1:-1));
-  const borrower = partnerById('p2');
-  const lender = partnerById('p1');
-  return '<div class="grid k23">'+
-    '<div style="display:flex;flex-direction:column;gap:14px">'+
-      '<div class="card"><div class="card-head"><div><h3>Investment loan · '+esc(borrower.name)+'</h3><p>His share of the investment, funded by '+esc(lender.name.split(' ')[0])+'</p></div><span class="badge '+(out>0?'amber':principal>0?'green':'gray')+'">'+(out>0?'Outstanding':principal>0?'Settled':'No loan yet')+'</span></div>'+
-        '<div class="card-body">'+
-          '<div class="grid k3" style="gap:10px"><div><div class="tiny muted">His investment share</div><div class="strong num" style="font-size:17px">'+money0(principal)+'</div></div>'+
+  const loans = activeLoans();
+  const allReps = DB.loanRepayments.slice().sort((a,b)=> a.date===b.date ? (b.createdAt||0)-(a.createdAt||0) : (a.date<b.date?1:-1));
+  const totalPrincipal = sum(loans, loanPrincipalOf);
+  const totalRepaid = sum(loans, loanRepaidOf);
+  const totalOut = totalLoanOutstanding();
+  const pctRepaid = totalPrincipal ? clamp(pct(totalRepaid, totalPrincipal), 0, 100) : 0;
+
+  const summary =
+    '<div class="card"><div class="card-head"><div><h3>Partner loans</h3><p>'+loans.length+(loans.length===1?' loan':' loans')+' between partners</p></div>'+
+      '<button class="btn sm no-print" data-act="new-loan">'+icon('plus',14)+' Add loan</button></div>'+
+      '<div class="card-body">'+
+        (loans.length ? '<div class="grid k3" style="gap:10px"><div><div class="tiny muted">Principal</div><div class="strong num" style="font-size:17px">'+money0(totalPrincipal)+'</div></div>'+
+          '<div><div class="tiny muted">Repaid</div><div class="strong num up" style="font-size:17px">'+money0(totalRepaid)+'</div></div>'+
+          '<div><div class="tiny muted">Outstanding</div><div class="strong num down" style="font-size:17px">'+money0(totalOut)+'</div></div></div>'+
+          '<div class="progress" style="margin:14px 0 6px"><span style="width:'+pctRepaid+'%"></span></div>'+
+          '<div class="tiny muted">'+pctRepaid.toFixed(1)+'% recovered</div>'
+          : emptyState('handshake','No partner loan','Loans are optional. Add one only if a partner actually owes money to another partner — for example one partner paid the other partner\'s investment share.','<button class="btn sm" data-act="new-loan">Add partner loan</button>'))+
+      '</div></div>';
+
+  const cards = loans.map(function(l){
+    const principal = loanPrincipalOf(l);
+    const repaid = loanRepaidOf(l);
+    const out = loanOutstandingOf(l);
+    const pctRepaidOne = principal ? clamp(pct(repaid,principal),0,100) : 0;
+    const reps = allReps.filter(r=>r.loanId===l.id);
+    return '<div class="card" style="margin-top:14px">'+
+      '<div class="card-head"><div><h3>'+esc(loanLabel(l))+'</h3><p>'+(l.linkCapital ? 'Linked to the borrower\'s capital share' : 'Fixed amount')+' · since '+fmtDate(l.date)+'</p></div>'+
+        '<span class="badge '+(out>0?'amber':'green')+'">'+(out>0?'Outstanding':'Settled')+'</span></div>'+
+      '<div class="card-body">'+
+        '<div class="grid k3" style="gap:10px"><div><div class="tiny muted">Principal</div><div class="strong num" style="font-size:17px">'+money0(principal)+'</div></div>'+
           '<div><div class="tiny muted">Repaid</div><div class="strong num up" style="font-size:17px">'+money0(repaid)+'</div></div>'+
           '<div><div class="tiny muted">Outstanding</div><div class="strong num down" style="font-size:17px">'+money0(out)+'</div></div></div>'+
-          '<div class="progress" style="margin:14px 0 6px"><span style="width:'+pctRepaid+'%"></span></div>'+
-          '<div class="tiny muted">'+pctRepaid.toFixed(1)+'% recovered</div>'+
-          '<div style="margin-top:14px"><button class="btn block" data-act="repay-loan" '+(out<=0?'disabled':'')+'>'+icon('check',15)+' Record repayment</button></div>'+
-          '<div class="form-note" style="margin-top:10px"><b>Calculated, not fixed.</b> His loan is his share of the net investment. If you invest another Rs 1,00,000 as a shared investment, his loan grows by '+money0(100000 * (num(borrower.share)/100))+'. Record repayments as he pays you from his profit share.</div>'+
-        '</div></div>'+
-      '<div class="card"><div class="card-head"><div><h3>Repayments received</h3><p>'+reps.length+(reps.length===1?' entry':' entries')+'</p></div></div>'+
-        '<div class="card-body">'+
-          (reps.length?'<div class="rows">'+reps.map(r=>'<div class="row"><div class="partner-avatar c" style="width:32px;height:32px;border-radius:9px">'+icon('check',15)+'</div>'+
+        '<div class="progress" style="margin:14px 0 6px"><span style="width:'+pctRepaidOne+'%"></span></div>'+
+        '<div class="tiny muted">'+pctRepaidOne.toFixed(1)+'% recovered</div>'+
+        (l.linkCapital ? '<div class="form-note" style="margin-top:10px"><b>Automatic principal.</b> This loan equals '+esc(partnerName(l.borrowerId))+'\'s share of the net investment. Adding or withdrawing shared capital changes it automatically; repayments do not.</div>'
+          : (l.note ? '<div class="form-note" style="margin-top:10px">'+esc(l.note)+'</div>' : ''))+
+        '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">'+
+          '<button class="btn sm" data-act="repay-loan" data-loan="'+l.id+'" '+(out<=0?'disabled':'')+'>'+icon('check',14)+' Record repayment</button>'+
+          '<button class="btn sm red no-print" data-act="del-loan" data-id="'+l.id+'">'+icon('trash',14)+' Delete loan</button>'+
+        '</div>'+
+        '<div class="divider"></div>'+
+        '<div class="row-title" style="font-size:13px;margin-bottom:8px">Repayments · '+reps.length+'</div>'+
+        (reps.length ? '<div class="rows">'+reps.map(r=>'<div class="row"><div class="partner-avatar c" style="width:32px;height:32px;border-radius:9px">'+icon('check',15)+'</div>'+
             '<div class="row-main"><div class="row-title">Loan repayment</div><div class="row-sub">'+fmtDate(r.date)+(r.note?' · '+esc(r.note):'')+'</div></div>'+
             '<div class="row-right"><div class="row-amt pos num">'+money(r.amount)+'</div></div>'+
             '<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-repayment" data-id="'+r.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div></div>').join('')+'</div>'
-          :'<div class="tiny muted">No repayment recorded yet.</div>')+
-        '</div></div>'+
-    '</div>'+
-    '<div class="card"><div class="card-head"><div><h3>How the loan is calculated</h3><p>Linked to the Capital tab</p></div></div>'+
-      '<div class="card-body">'+
-        '<div class="stat-line"><span class="k">Total investment</span><span class="v num">'+money0(totalCapital())+'</span></div>'+
-        '<div class="stat-line"><span class="k">'+esc(borrower.name)+'\'s share</span><span class="v num">'+borrower.share+'%</span></div>'+
-        '<div class="stat-line" style="border-top:1px dashed var(--line);padding-top:8px"><span class="k strong" style="color:var(--ink)">His share = loan principal</span><span class="v num">'+money0(principal)+'</span></div>'+
-        '<div class="stat-line"><span class="k">Less repayments</span><span class="v num">− '+money0(repaid)+'</span></div>'+
-        '<div class="stat-line" style="border-top:1px solid var(--line);padding-top:8px"><span class="k strong" style="color:var(--ink)">Outstanding</span><span class="v num" style="font-size:16px">'+money0(out)+'</span></div>'+
-        '<div class="divider"></div>'+
-        '<div class="tiny muted">'+
-          'You invest the money; '+esc(borrower.name.split(' ')[0])+' owns '+borrower.share+'% of it, so that share is his loan from you. '+
-          'Capital withdrawals reduce the loan. Repayments never change his profit share percentage.'+
-        '</div>'+
-        (over>0?'<div class="alert amber" style="margin-top:10px">'+icon('alert',15)+'<div>Repayments are '+money0(over)+' more than the current calculated share. Delete or adjust a repayment if needed.</div></div>':'')+
-        (principal===0?'<div class="alert blue" style="margin-top:10px">'+icon('info',15)+'<div>Add an investment in the Capital tab and his share will appear here automatically.</div></div>':'')+
-      '</div></div>'+
-  '</div>';
+          : '<div class="tiny muted">No repayment recorded yet.</div>')+
+      '</div></div>';
+  }).join('');
+
+  return summary + cards;
 }
 function drawingsTabHTML(){
   const list = DB.drawings.slice().sort((a,b)=> a.date===b.date ? (b.createdAt||0)-(a.createdAt||0) : (a.date<b.date?1:-1));
@@ -2968,11 +3075,11 @@ function drawingsTabHTML(){
   return '<div class="grid k23">'+
     '<div class="card"><div class="card-head"><div><h3>Partner drawings</h3><p>Money taken out during the month</p></div><button class="btn sm ghost no-print" data-act="new-drawing">'+icon('plus',14)+' Add</button></div>'+
       '<div class="card-body">'+
-        (list.length?'<div class="rows">'+list.map(d=>'<div class="row"><div class="partner-avatar '+(d.partnerId==='p1'?'a':'b')+'" style="width:34px;height:34px;border-radius:10px">'+esc(initials(partnerById(d.partnerId).name))+'</div>'+
+        (list.length?'<div class="rows">'+list.map(d=>'<div class="row"><div class="partner-avatar '+partnerTone(d.partnerId)+'" style="width:34px;height:34px;border-radius:10px">'+esc(initials(partnerById(d.partnerId).name))+'</div>'+
           '<div class="row-main"><div class="row-title">'+esc(partnerById(d.partnerId).name)+'</div><div class="row-sub">'+fmtDate(d.date)+(d.note?' · '+esc(d.note):'')+'</div></div>'+
           '<div class="row-right"><div class="row-amt neg num">'+money(d.amount)+'</div></div>'+
           '<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-drawing" data-id="'+d.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div></div>').join('')+'</div>'
-        :emptyState('wallet','No drawings recorded','When a partner takes cash, record it here. It is adjusted against his profit share.','<button class="btn sm" data-act="new-drawing">Add drawing</button>'))+
+        :emptyState('wallet','No drawings recorded','When a partner takes cash, record it here. It is adjusted against their profit share.','<button class="btn sm" data-act="new-drawing">Add drawing</button>'))+
       '</div></div>'+
     '<div class="card"><div class="card-head"><div><h3>This month</h3><p>'+monthName(mk)+'</p></div></div>'+
       '<div class="card-body">'+DB.partners.map(p=>{
@@ -2987,9 +3094,7 @@ function drawingsTabHTML(){
 function settlementTabHTML(st){
   const mk = UI.settleMonth;
   const p = st.pnl;
-  const gh = st.rows.find(r=>r.partner.id==='p2') || st.rows[1] || st.rows[0];
-  const loan = loanOutstanding();
-  const suggest = gh ? Math.min(loan, Math.max(0, gh.net)) : 0;
+  const loanRows = st.rows.map(function(r){ return {row:r, out:outstandingForBorrower(r.partner.id)}; }).filter(function(x){ return x.out > 0; });
   return '<div class="print-only" style="margin-bottom:14px"><h1 style="font-size:18px">'+esc(displayName())+'</h1><div style="font-size:12px;color:#444">Partner settlement · '+monthName(mk)+'</div></div>'+
   '<div class="grid k23">'+
     '<div class="card"><div class="card-head"><div><h3>Settlement · '+monthName(mk)+'</h3><p>Profit split after all expenses</p></div><button class="btn sm ghost no-print" data-act="print">'+icon('print',14)+' Print</button></div>'+
@@ -3002,14 +3107,21 @@ function settlementTabHTML(st){
         '<div class="table-wrap" style="margin-top:14px"><table class="tbl"><thead><tr><th>Partner</th><th class="r">Share</th><th class="r">Profit share</th><th class="r">Drawings</th><th class="r">Payable</th></tr></thead><tbody>'+
           st.rows.map(r=>'<tr><td><b>'+esc(r.partner.name)+'</b></td><td class="r">'+r.partner.share+'%</td><td class="r num">'+money0(r.share)+'</td><td class="r num">'+money0(r.drawn)+'</td><td class="r num"><b>'+money0(r.net)+'</b></td></tr>').join('')+
         '</tbody></table></div>'+
-        (loan>0?'<div class="alert amber" style="margin-top:14px;display:block">'+ 
-          '<div style="display:flex;gap:8px;align-items:flex-start">'+icon('handshake',16)+'<div><b>Loan recovery plan</b><br>'+esc(borrowerName())+' owes '+esc(funderName())+' '+money0(loan)+'. After this month\'s drawings, the available share is '+money0(Math.max(0,gh?gh.net:0))+'.</div></div>'+
-          '<div class="divider" style="border-color:color-mix(in srgb,var(--amber) 30%,transparent)"></div>'+
-          '<div class="stat-line"><span class="k">Suggested transfer to '+esc(funderName())+'</span><span class="v num">'+money0(suggest)+'</span></div>'+
-          '<div class="stat-line"><span class="k">Remaining to '+esc(borrowerName())+'</span><span class="v num">'+money0(Math.max(0,(gh?gh.net:0)-suggest))+'</span></div>'+
-          (suggest>0?'<button class="btn sm block" style="margin-top:9px" data-act="repay-loan-suggested" data-amount="'+suggest+'">'+icon('check',14)+' Pay '+money0(suggest)+' to '+esc(funderName())+' from '+esc(borrowerName())+'\'s share</button><div class="tiny" style="margin-top:5px">This records both the loan repayment and the drawing, keeping cash correct.</div>':'<div class="tiny" style="margin-top:6px">No profit available to repay this month. The loan continues.</div>')+
-        '</div>':'<div class="alert green" style="margin-top:14px">'+icon('check',16)+'<div>Loan is fully settled. '+esc(borrowerName())+' now receives the full profit share.</div></div>')+
-        '<div style="display:flex;gap:8px;margin-top:14px" class="no-print"><button class="btn ghost block" data-act="repay-loan">'+icon('handshake',15)+' Loan repayment</button><button class="btn ghost block" data-act="new-drawing">'+icon('wallet',15)+' Drawing</button></div>'+
+        (loanRows.length ? loanRows.map(function(x){
+          const row = x.row, out = x.out;
+          const suggest = Math.min(out, Math.max(0, row.net));
+          const lenders = lenderNamesFor(row.partner.id);
+          return '<div class="alert amber" style="margin-top:14px;display:block">'+
+            '<div style="display:flex;gap:8px;align-items:flex-start">'+icon('handshake',16)+'<div><b>Loan recovery · '+esc(row.partner.name)+'</b><br>Owes '+esc(lenders)+' '+money0(out)+'. After this month\'s drawings, the available share is '+money0(Math.max(0,row.net))+'.</div></div>'+
+            '<div class="divider" style="border-color:color-mix(in srgb,var(--amber) 30%,transparent)"></div>'+
+            '<div class="stat-line"><span class="k">Suggested transfer to '+esc(lenders)+'</span><span class="v num">'+money0(suggest)+'</span></div>'+
+            '<div class="stat-line"><span class="k">Remaining to '+esc(row.partner.name)+'</span><span class="v num">'+money0(Math.max(0,row.net-suggest))+'</span></div>'+
+            (suggest>0?'<button class="btn sm block" style="margin-top:9px" data-act="repay-loan-suggested" data-borrower="'+attr(row.partner.id)+'" data-amount="'+suggest+'">'+icon('check',14)+' Pay '+money0(suggest)+' to '+esc(lenders)+' from '+esc(row.partner.name)+'\'s share</button><div class="tiny" style="margin-top:5px">This records the loan repayment and the drawing, keeping cash correct.</div>':'<div class="tiny" style="margin-top:6px">No profit available to repay this month. The loan continues.</div>')+
+          '</div>';
+        }).join('') : (activeLoans().length ? '<div class="alert green" style="margin-top:14px">'+icon('check',16)+'<div>All partner loans are settled.</div></div>' : ''))+
+        '<div style="display:flex;gap:8px;margin-top:14px" class="no-print">'+
+          (activeLoans().length ? '<button class="btn ghost block" data-act="repay-loan">'+icon('handshake',15)+' Loan repayment</button>' : '')+
+          '<button class="btn ghost block" data-act="new-drawing">'+icon('wallet',15)+' Drawing</button></div>'+
       '</div></div>'+
     '<div style="display:flex;flex-direction:column;gap:14px">'+
       '<div class="card"><div class="card-head"><div><h3>Profit breakdown</h3><p>'+monthName(mk)+'</p></div></div>'+
@@ -3038,7 +3150,7 @@ function openInvestmentForm(presetKind, editId){
   const splitOpts = [{value:'both', label:shareLabel}].concat(DB.partners.map(p=>({value:p.id, label:'Only '+p.name})));
   openModal({
     title: e ? 'Edit investment entry' : (kind === 'withdrawal' ? 'Withdraw investment' : 'Add investment'),
-    subtitle: 'Investment is shared between both partners automatically.',
+    subtitle: 'Investment is split between the partners by their shares.',
     submitLabel: e ? 'Save changes' : (kind === 'withdrawal' ? 'Save withdrawal' : 'Save investment'),
     footLeft: e ? '<button type="button" class="btn red" data-act="del-investment" data-id="'+e.id+'">'+icon('trash',15)+' Delete</button>' : '',
     body:'<div class="form-grid">'+
@@ -3050,7 +3162,7 @@ function openInvestmentForm(presetKind, editId){
       '<div class="field full"><label for="inv-note">Note</label><textarea id="inv-note" name="note" placeholder="Purpose, reference, etc.">'+esc(e?e.note||'':'')+'</textarea></div>'+
       '<label class="switch full"><input type="checkbox" name="inCash" id="inCash" '+( !e || e.inCash!==false ? 'checked':'')+'><span class="track"></span><span>Money moved in / out of the business cash (updates cash in hand)</span></label>'+
       '<div class="calc-box full" id="inv-preview"></div>'+
-      '<div class="form-note full">'+esc(partnerById('p1').name)+' is treated as the one funding the investment. '+esc(partnerById('p2').name)+'\'s share becomes his loan from '+esc(partnerById('p1').name)+' automatically.</div>'+
+      '<div class="form-note full">Investments are split by the ratio above. Cash and capital update immediately. Partner loans are tracked separately on the Loan tab.</div>'+
     '</div><datalist id="inv-labels">'+INVESTMENT_LABELS.map(l=>'<option value="'+attr(l)+'">').join('')+'</datalist>',
     onMount:function(form){
       const lbl = form.querySelector('#label');
@@ -3060,19 +3172,25 @@ function openInvestmentForm(presetKind, editId){
       function preview(){
         const amt = num(amtEl.value) * (kindEl.value === 'withdrawal' ? -1 : 1);
         let html = '<div class="stat-line"><span class="k">Effect on total investment</span><span class="v num">'+(amt<0?'−':'+')+money(Math.abs(amt))+'</span></div>';
-        let loanChange = 0;
+        const per = {};
         if(splitEl.value === 'both'){
           DB.partners.forEach(p=>{
             const v = amt * (num(p.share) / 100);
-            if(p.id === 'p2') loanChange = v;
+            per[p.id] = v;
             html += '<div class="stat-line"><span class="k">'+esc(p.name)+' ('+p.share+'%)</span><span class="v num">'+(v<0?'−':'+')+money(Math.abs(v))+'</span></div>';
           });
         } else {
           const p = partnerById(splitEl.value);
-          if(p.id === 'p2') loanChange = amt;
+          per[splitEl.value] = amt;
           html += '<div class="stat-line"><span class="k">'+esc(p.name)+' only</span><span class="v num">'+(amt<0?'−':'+')+money(Math.abs(amt))+'</span></div>';
         }
-        html += '<div class="stat-line" style="border-top:1px dashed var(--line);padding-top:6px"><span class="k">'+esc(partnerById('p2').name)+' loan</span><span class="v num">'+(loanChange<0?'−':'+')+money(Math.abs(loanChange))+'</span></div>';
+        if(loansEnabled()){
+          DB.loans.filter(l=>l.linkCapital).forEach(l=>{
+            const v = per[l.borrowerId] || 0;
+            if(!v) return;
+            html += '<div class="stat-line" style="border-top:1px dashed var(--line);padding-top:6px"><span class="k">'+esc(loanLabel(l))+'</span><span class="v num">'+(v<0?'−':'+')+money(Math.abs(v))+'</span></div>';
+          });
+        }
         const box = $('#inv-preview');
         if(box) box.innerHTML = html;
       }
@@ -3105,28 +3223,147 @@ function openInvestmentForm(presetKind, editId){
     }
   });
 }
-function openLoanRepaymentForm(preset){
-  const out = loanOutstanding();
-  if(out<=0){ toast('Loan is already fully settled','ok'); return; }
-  const def = preset && preset > 0 ? Math.min(preset, out) : out;
-  const borrowerId = (DB.partners[1] && DB.partners[1].id) || 'p2';
-  const lenderId = (DB.partners[0] && DB.partners[0].id) || 'p1';
-  const borrowerName = partnerById(borrowerId).name;
+function loanPreviewHTML(borrowerId, link, amount){
+  const principal = link ? Math.max(0, partnerCapital(borrowerId)) : num(amount);
+  return '<div class="stat-line"><span class="k">Loan principal</span><span class="v num">'+money0(principal)+'</span></div>'+
+    (link ? '<div class="tiny muted">Follows '+esc(partnerName(borrowerId))+'’s share of the current net investment. It changes only when capital is added or withdrawn.</div>' : '');
+}
+function openLoanForm(){
+  if(DB.partners.length < 2){ toast('Add a second partner before recording a partner loan','err'); return; }
+  const opts = DB.partners.map(p=>({value:p.id, label:p.name}));
+  const lenderId = DB.partners[0].id;
+  const borrowerId = DB.partners[1].id;
   openModal({
-    title:'Record loan repayment', subtitle:'Outstanding '+money(out),
+    title:'Add partner loan',
+    subtitle:'Money one partner owes another partner',
+    submitLabel:'Save loan',
     body:'<div class="form-grid">'+
+      selectField('lenderId','Lender (paid the money)',opts,lenderId)+
+      selectField('borrowerId','Borrower (owes the money)',opts,borrowerId)+
+      selectField('loanType','How the amount is set',[
+        {value:'fixed',label:'Fixed amount'},
+        {value:'capital',label:'Follow the borrower\'s capital share'}
+      ],'fixed')+
+      dateField('date','Date',todayISO())+
+      moneyField('amount','Loan amount',0)+
+      '<div class="field full"><label for="loan-note">Note</label><input id="loan-note" name="note" placeholder="Reason for the loan (optional)"></div>'+
+      '<div class="calc-box full" id="loan-preview"></div>'+
+      '<div class="form-note full">A partner loan is personal between partners. Record repayments on the Loan tab. It does not change the profit-share percentage.</div>'+
+    '</div>',
+    onMount:function(form){
+      const g = n => form.querySelector('#'+n);
+      const b = g('borrowerId'), t = g('loanType'), a = g('amount');
+      const wrap = a ? a.closest('.field') : null;
+      function refresh(){
+        const link = t.value === 'capital';
+        if(wrap) wrap.style.display = link ? 'none' : '';
+        const box = $('#loan-preview');
+        if(box) box.innerHTML = loanPreviewHTML(b.value, link, a ? a.value : 0);
+      }
+      [b,t,a].forEach(function(el){
+        if(!el) return;
+        el.addEventListener('change', refresh);
+        el.addEventListener('input', refresh);
+      });
+      refresh();
+    },
+    onSubmit:function(fd){
+      if(fd.lenderId === fd.borrowerId) fail('Choose two different partners.');
+      const link = fd.loanType === 'capital';
+      const amt = num(fd.amount);
+      if(!link && amt <= 0) fail('Enter the loan amount.');
+      const borrower = partnerById(fd.borrowerId);
+      if(link && partnerCapital(borrower.id) <= 0) fail(borrower.name + ' has no capital share yet. Add an investment first, or use a fixed amount.');
+      DB.loans.push({
+        id:uid('loan'), lenderId:fd.lenderId, borrowerId:fd.borrowerId,
+        principal:link ? 0 : round2(amt), linkCapital:link,
+        date:fd.date, note:(fd.note||'').trim(), createdAt:Date.now()
+      });
+      DB.settings.loansEnabled = true;
+      DB.settings.loansInitialized = true;
+      save(); render();
+      return {message:'Partner loan added'};
+    }
+  });
+}
+function confirmDeleteLoan(id){
+  const l = DB.loans.find(x=>x.id===id);
+  if(!l) return;
+  const reps = DB.loanRepayments.filter(r=>r.loanId===id);
+  if(reps.length){ toast('This loan has '+reps.length+' repayment'+(reps.length===1?'':'s')+'. Delete those first.','err'); return; }
+  openModal({
+    title:'Delete this loan?',
+    subtitle:loanLabel(l),
+    submitLabel:'Delete loan',
+    body:'<div class="alert red">'+icon('alert',16)+'<div>Only the loan record is removed. Capital, drawings and repayments already recorded are not changed.</div></div>',
+    onSubmit:function(){
+      DB.loans = DB.loans.filter(x=>x.id!==id);
+      save(); render();
+      return {message:'Loan deleted'};
+    }
+  });
+}
+function recordLoanRecovery(borrowerId, amount){
+  let left = round2(amount);
+  const date = todayISO();
+  const loans = loansForBorrower(borrowerId).filter(l=>loanOutstandingOf(l) > 0)
+    .sort((a,b)=> (a.date<b.date?-1:a.date>b.date?1:0) || ((a.createdAt||0)-(b.createdAt||0)));
+  let paid = 0;
+  loans.forEach(function(l){
+    if(left <= 0) return;
+    const out = loanOutstandingOf(l);
+    const part = round2(Math.min(out, left));
+    if(part <= 0) return;
+    DB.loanRepayments.push({
+      id:uid('lr'), loanId:l.id, date, amount:part,
+      note:'Paid from '+partnerName(borrowerId)+'\'s profit share', createdAt:Date.now()
+    });
+    left = round2(left - part);
+    paid = round2(paid + part);
+  });
+  if(paid > 0){
+    DB.drawings.push({
+      id:uid('drw'), date, partnerId:borrowerId, amount:paid,
+      note:'Loan repayment', createdAt:Date.now()
+    });
+    save(); render();
+    toast('Loan repayment of '+money(paid)+' recorded','ok');
+  } else {
+    toast('Nothing left to repay on that loan','ok');
+  }
+}
+function openLoanRepaymentForm(preset){
+  const loans = activeLoans().filter(l=>loanOutstandingOf(l) > 0);
+  if(!loans.length){ toast('No partner loan is outstanding','ok'); return; }
+  preset = preset && typeof preset === 'object' ? preset : {amount:num(preset)};
+  const byOut = loans.slice().sort((a,b)=>loanOutstandingOf(b)-loanOutstandingOf(a));
+  let loan = null;
+  if(preset.loanId) loan = byOut.find(l=>l.id===preset.loanId) || null;
+  if(!loan && preset.borrowerId) loan = byOut.find(l=>l.borrowerId===preset.borrowerId) || null;
+  if(!loan) loan = byOut[0];
+  const out = loanOutstandingOf(loan);
+  const def = preset.amount > 0 ? Math.min(preset.amount, out) : out;
+  const borrower = partnerById(loan.borrowerId);
+  openModal({
+    title:'Record loan repayment',
+    subtitle:loanLabel(loan)+' · '+money(out)+' outstanding',
+    body:'<div class="form-grid">'+
+      (loans.length > 1 ? selectField('loanId','Which loan',byOut.map(l=>({value:l.id,label:loanLabel(l)+' · '+money0(loanOutstandingOf(l))+' left'})),loan.id) : '')+
       dateField('date','Date',todayISO())+
       moneyField('amount','Amount repaid',def)+
-      inputField('note','Note',{value:'Paid from '+borrowerName+'\'s profit share',full:true})+
-      '<label class="switch full"><input type="checkbox" name="asDrawing" id="asDrawing" checked><span class="track"></span><span>Also record this as '+esc(borrowerName)+'\'s drawing (cash paid out of the business)</span></label>'+
+      inputField('note','Note',{value:'Paid from '+borrower.name+'\'s profit share',full:true})+
+      '<label class="switch full"><input type="checkbox" name="asDrawing" id="asDrawing" checked><span class="track"></span><span>Also record this as '+esc(borrower.name)+'\'s drawing (cash paid out of the business)</span></label>'+
     '</div><div class="form-note">The loan is personal between partners, but the money normally leaves the business cash. Keeping the drawing ticked makes cash in hand and the partner settlement correct. Untick it only if the repayment came from outside the business.</div>',
     onSubmit:function(fd){
-      const amt=num(fd.amount);
-      if(amt<=0) fail('Enter a valid amount.');
-      if(amt > out + 0.01) fail('Repayment is more than the outstanding loan ('+money(out)+').');
-      DB.loanRepayments.push({id:uid('lr'), date:fd.date, amount:round2(amt), note:fd.note||'', createdAt:Date.now()});
+      const target = fd.loanId ? DB.loans.find(l=>l.id===fd.loanId) : loan;
+      if(!target) fail('Select a loan.');
+      const targetOut = loanOutstandingOf(target);
+      const amt = num(fd.amount);
+      if(amt <= 0) fail('Enter a valid amount.');
+      if(amt > targetOut + 0.01) fail('Repayment is more than the outstanding loan ('+money(targetOut)+').');
+      DB.loanRepayments.push({id:uid('lr'), loanId:target.id, date:fd.date, amount:round2(amt), note:fd.note||'', createdAt:Date.now()});
       if(fd.asDrawing === 'on'){
-        DB.drawings.push({id:uid('drw'), date:fd.date, partnerId:borrowerId, amount:round2(amt), note:'Loan repayment paid to '+partnerById(lenderId).name, createdAt:Date.now()});
+        DB.drawings.push({id:uid('drw'), date:fd.date, partnerId:target.borrowerId, amount:round2(amt), note:'Loan repayment paid to '+partnerName(target.lenderId), createdAt:Date.now()});
       }
       save(); render();
     }
@@ -3829,7 +4066,7 @@ function pageReports(){
       '<div class="card-body" style="padding-top:4px"><div class="table-wrap"><table class="tbl"><thead><tr><th>Partner</th><th class="r">Share</th><th class="r">Profit</th><th class="r">Drawings</th><th class="r">Payable</th></tr></thead><tbody>'+
         st.rows.map(r=>'<tr><td><b>'+esc(r.partner.name)+'</b></td><td class="r">'+r.partner.share+'%</td><td class="r num">'+money0(r.share)+'</td><td class="r num">'+money0(r.drawn)+'</td><td class="r num"><b>'+money0(r.net)+'</b></td></tr>').join('')+
       '</tbody></table></div>'+
-      '<div class="divider"></div><div class="stat-line"><span class="k">Loan outstanding ('+esc(borrowerName())+' → '+esc(funderName())+')</span><span class="v num down">'+money0(loanOutstanding())+'</span></div>'+
+      (activeLoans().length ? '<div class="divider"></div>'+activeLoans().map(l=>'<div class="stat-line"><span class="k">Loan · '+esc(loanLabel(l))+'</span><span class="v num down">'+money0(loanOutstandingOf(l))+'</span></div>').join('') : '')+
       '</div></div>'+
     '<div class="card"><div class="card-head"><div><h3>Stock summary</h3><p>As of today</p></div></div>'+
       '<div class="card-body" style="padding-top:4px"><div class="table-wrap"><table class="tbl"><thead><tr><th>Product</th><th class="r">Opening</th><th class="r">Purchased</th><th class="r">Sold</th><th class="r">Book</th><th class="r">Value</th></tr></thead><tbody>'+
@@ -3898,9 +4135,18 @@ function pageSettings(){
       '</div></div>'+
     '<div class="card"><div class="card-head"><div><h3>Partners</h3><p>Profit sharing ratio (must total 100%)</p></div></div>'+
       '<div class="card-body" style="display:flex;flex-direction:column;gap:12px">'+
-        DB.partners.map((p,i)=>'<div class="grid k2" style="gap:8px"><div class="field"><label>Partner '+(i+1)+' name</label><input id="set-p'+(i+1)+'-name" value="'+attr(p.name)+'"></div>'+
-          '<div class="field"><label>Share %</label><input id="set-p'+(i+1)+'-share" type="number" step="0.01" min="0" max="100" value="'+num(p.share)+'"></div></div>').join('')+
-        '<button class="btn" data-act="save-settings">'+icon('check',16)+' Save partners</button>'+
+        DB.partners.map((p,i)=>
+          '<div style="display:flex;gap:8px;align-items:flex-end">'+
+            '<div class="field" style="flex:1;min-width:0"><label>Partner '+(i+1)+' name</label><input id="set-p-name-'+i+'" value="'+attr(p.name)+'"></div>'+
+            '<div class="field" style="width:84px"><label>Share %</label><input id="set-p-share-'+i+'" type="number" step="0.01" min="0" max="100" value="'+num(p.share)+'"></div>'+
+            (DB.partners.length>1?'<button class="mini-btn danger no-print" style="margin-bottom:2px" data-act="del-partner" data-id="'+attr(p.id)+'" aria-label="Remove partner">'+icon('trash',14)+'</button>':'')+
+          '</div>'+
+          '<div class="field" style="margin-top:-6px"><label>Role (optional)</label><input id="set-p-role-'+i+'" value="'+attr(p.role||'')+'" placeholder="e.g. Managing Partner"></div>'
+        ).join('')+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" data-act="add-partner">'+icon('plus',14)+' Add partner</button><button class="btn" data-act="save-settings">'+icon('check',16)+' Save partners</button></div>'+
+        '<div class="form-note">Shares must add up to 100%. Changes apply to future settlements; past entries keep the names you used.</div>'+
+        '<label class="switch"><input type="checkbox" id="set-loans-enabled" '+(loansEnabled()?'checked':'')+'><span class="track"></span><span>Track partner loans (money one partner owes another)</span></label>'+
+        '<div class="tiny muted" style="margin-top:-4px">When off, the Loan tab, loan totals and loan reminders are hidden. Your loan records are kept either way.</div>'+
       '</div></div>'+
   '</div>'+
   '<div class="grid k2" style="margin-top:14px">'+
@@ -3951,9 +4197,9 @@ function pageSettings(){
   '<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>How the hisab works</h3><p>Quick reference</p></div></div>'+
     '<div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'+
       '<div class="small muted"><b style="color:var(--ink)">Sales</b><br>Closing meter − opening meter = litres. Litres × rate = sale amount. Cash received is added to cash; any balance becomes customer credit.</div>'+
-      '<div class="small muted"><b style="color:var(--ink)">Profit</b><br>Sales − cost of the fuel sold (moving average buy rate at the time of each reading) − expenses − salaries = net profit. A later purchase never changes the profit of a reading already recorded. Your 50/50 split is shown under Partners → Settlement.</div>'+
-      '<div class="small muted"><b style="color:var(--ink)">Loan</b><br>The first partner funds the investment, so the second partner\'s share of it becomes a loan. The loan grows automatically when you add a shared investment and reduces with each repayment. At zero, the borrowing partner receives the full profit share.</div>'+
-      '<div class="small muted"><b style="color:var(--ink)">Drawings</b><br>Cash a partner takes is recorded as a drawing. It reduces his payable share and the business cash, but never reduces net profit.</div>'+
+      '<div class="small muted"><b style="color:var(--ink)">Profit</b><br>Sales − cost of the fuel sold (moving average buy rate at the time of each reading) − expenses − salaries = net profit. A later purchase never changes the profit of a reading already recorded. The split by each partner\'s share is shown under Partners → Settlement.</div>'+
+      '<div class="small muted"><b style="color:var(--ink)">Partner loans</b><br>Optional. Record a loan when one partner owes money to another — any direction, fixed or linked to the borrower\'s capital share. Turn it on in Partners settings. Repayments reduce the loan and, optionally, the borrower\'s drawing. It never changes the profit-share percentage.</div>'+
+      '<div class="small muted"><b style="color:var(--ink)">Drawings</b><br>Cash a partner takes is recorded as a drawing. It reduces their payable share and the business cash, but never reduces net profit.</div>'+
     '</div></div>'+
   '<div class="tiny muted" style="text-align:center;margin:22px 0 8px">'+esc(displayName())+' · Hisab v1 · Build '+esc(buildLabel())+'</div>'+
   '';
@@ -4001,13 +4247,23 @@ function saveSettings(){
   DB.settings.address = val('set-address').trim();
   DB.settings.phone = val('set-phone').trim();
   DB.settings.openingCash = num(val('set-openingCash'));
-  const s1 = num(val('set-p1-share')), s2 = num(val('set-p2-share'));
-  if(s1 || s2){
-    if(Math.abs((s1+s2)-100) > 0.01){ toast('Partner shares must add up to 100%','err'); return; }
-    const n1 = val('set-p1-name').trim(), n2 = val('set-p2-name').trim();
-    if(!n1 || !n2){ toast('Partner names cannot be empty','err'); return; }
-    DB.partners[0].name = n1; DB.partners[0].share = s1;
-    DB.partners[1].name = n2; DB.partners[1].share = s2;
+  if(DB.partners.length){
+    const names = DB.partners.map((p,i)=>val('set-p-name-'+i).trim());
+    const roles = DB.partners.map((p,i)=>val('set-p-role-'+i).trim());
+    const shares = DB.partners.map((p,i)=>num(val('set-p-share-'+i)));
+    if(names.some(n=>!n)){ toast('Partner names cannot be empty','err'); return; }
+    const total = round2(sum(shares));
+    if(Math.abs(total - 100) > 0.01){ toast('Partner shares must add up to 100% (currently '+total+'%)','err'); return; }
+    DB.partners.forEach((p,i)=>{
+      p.name = names[i];
+      p.role = roles[i] || 'Partner';
+      p.share = round2(shares[i]);
+    });
+  }
+  const loansToggle = $('#set-loans-enabled');
+  if(loansToggle){
+    DB.settings.loansEnabled = !!loansToggle.checked;
+    DB.settings.loansInitialized = true;
   }
   DB.products.forEach(p=>{
     const el = $('#set-rate-'+p.id);
@@ -4022,6 +4278,43 @@ function saveSettings(){
   document.title = appTitle();
   save(); render();
   toast('Settings saved','ok');
+}
+function addPartner(){
+  if(DB.partners.length >= 8){ toast('That is a lot of partners — 8 is the maximum','err'); return; }
+  DB.partners.push({id:uid('p'), name:'Partner '+(DB.partners.length+1), role:'Partner', share:0});
+  DB.settings.loansInitialized = true;
+  save(); render();
+  toast('Partner added — enter a name and set shares so the total is 100%','ok');
+}
+function confirmRemovePartner(id){
+  const p = partnerById(id);
+  if(!p || !p.id) return;
+  if(DB.partners.length <= 1){ toast('Keep at least one partner','err'); return; }
+  if(Math.abs(partnerCapital(id)) > 0.004){ toast('This partner has capital in the pump. Adjust or withdraw it before deleting the partner.','err'); return; }
+  const used = (DB.drawings||[]).some(d=>d.partnerId===id) ||
+    (DB.loans||[]).some(l=>l.lenderId===id || l.borrowerId===id);
+  if(used){ toast('This partner has drawings or partner loans. Remove those first.','err'); return; }
+  openModal({
+    title:'Remove '+p.name+'?',
+    subtitle:'Their share must be added to the remaining partners.',
+    submitLabel:'Remove partner',
+    body:'<div class="alert amber">'+icon('alert',16)+'<div><b>'+esc(p.name)+'</b> will be removed from the partner list. Their '+p.share+'% share is added to the remaining partners in proportion to their current shares.</div></div>',
+    onSubmit:function(){
+      DB.partners = DB.partners.filter(x=>x.id!==id);
+      const total = sum(DB.partners, x=>x.share);
+      if(DB.partners.length){
+        if(total > 0){
+          DB.partners.forEach(x=>{ x.share = round2(x.share / total * 100); });
+          const diff = round2(100 - sum(DB.partners, x=>x.share));
+          if(diff) DB.partners[DB.partners.length-1].share = round2(DB.partners[DB.partners.length-1].share + diff);
+        } else {
+          DB.partners[0].share = 100;
+        }
+      }
+      save(); render();
+      return {message:'Partner removed'};
+    }
+  });
 }
 function openBankForm(id){
   const b = id ? bankById(id) : null;
@@ -4197,6 +4490,7 @@ function confirmDelete(type, id){
     staff:{label:'staff member', coll:DB.staff},
     salaryPayment:{label:'salary payment', coll:DB.salaryPayments},
     investment:{label:'investment entry', coll:DB.investments},
+    loan:{label:'partner loan', coll:DB.loans},
     loanRepayment:{label:'loan repayment', coll:DB.loanRepayments},
     drawing:{label:'drawing', coll:DB.drawings},
     cashEntry:{label:'cash entry', coll:DB.cashEntries},
@@ -4431,10 +4725,18 @@ function exportFullCSV(){
   DB.salaryPayments.forEach(p=>rows.push([p.date,(DB.staff.find(s=>s.id===p.staffId)||{name:''}).name,p.amount,p.type||'Salary']));
   rows.push([]); rows.push(['INVESTMENTS']); rows.push(['Date','Partner','Amount','Kind','Label']);
   DB.investments.forEach(i=>rows.push([i.date,i.split==='both'?'Shared':partnerById(i.partnerId).name,invAmount(i),i.kind,i.label]));
-  rows.push([]); rows.push(['INVESTMENT LOAN (CALCULATED)']); rows.push(['Borrower share of investment','Repaid','Outstanding']);
-  rows.push([loanPrincipal(),loanRepaid(),loanOutstanding()]);
-  rows.push([]); rows.push(['LOAN REPAYMENTS']); rows.push(['Date','Amount','Note']);
-  DB.loanRepayments.forEach(r=>rows.push([r.date,r.amount,r.note||'']));
+  rows.push([]); rows.push(['PARTNER LOANS']);
+  if(activeLoans().length){
+    rows.push(['Borrower','Lender','Principal','Repaid','Outstanding','Type']);
+    activeLoans().forEach(l=>rows.push([partnerName(l.borrowerId),partnerName(l.lenderId),loanPrincipalOf(l),loanRepaidOf(l),loanOutstandingOf(l),l.linkCapital?'Linked to capital share':'Fixed']));
+  } else {
+    rows.push(['No partner loans recorded']);
+  }
+  rows.push([]); rows.push(['LOAN REPAYMENTS']); rows.push(['Date','Borrower','Amount','Note']);
+  DB.loanRepayments.forEach(r=>{
+    const ln = (DB.loans||[]).find(l=>l.id===r.loanId);
+    rows.push([r.date, ln?partnerName(ln.borrowerId):'', r.amount, r.note||'']);
+  });
   rows.push([]); rows.push(['DRAWINGS']); rows.push(['Date','Partner','Amount','Note']);
   DB.drawings.forEach(d=>rows.push([d.date,partnerById(d.partnerId).name,d.amount,d.note||'']));
   rows.push([]); rows.push(['STOCK NOW']);
@@ -5156,6 +5458,10 @@ function cloudAdoptRemote(remote){
     DB.settings = Object.assign({}, DB.settings, remote.settings.settings || {}, {theme:DB.settings.theme});
     DB.rates = Object.assign({}, DB.rates, remote.settings.rates || {});
   }
+  if(!(remote.settings && remote.settings.settings && remote.settings.settings.loansInitialized)){
+    legacyLoanSeed(DB);
+    DB.settings.loansInitialized = true;
+  }
   DB.settings.setupComplete = true;
   DB.settings.setupDismissed = true;
 }
@@ -5174,6 +5480,10 @@ function cloudMergeRemote(remote){
   if(remote.settings){
     DB.settings = Object.assign({}, DB.settings, remote.settings.settings || {}, {theme:DB.settings.theme});
     DB.rates = Object.assign({}, DB.rates, remote.settings.rates || {});
+  }
+  if(!(remote.settings && remote.settings.settings && remote.settings.settings.loansInitialized)){
+    legacyLoanSeed(DB);
+    DB.settings.loansInitialized = true;
   }
 }
 function cloudApplyRemoteTombstones(list){
@@ -5721,12 +6031,18 @@ function onbDraft(){
   const banks = (DB.banks || []).map(function(b){
     return {id:b.id, name:b.name || '', opening:num(b.opening)};
   });
+  const linkedLoan = (DB.loans || []).filter(function(l){ return l.linkCapital; })[0] || null;
   return {
     pumpName: s.pumpName || '',
     address: s.address || '',
     phone: s.phone || '',
     openingCash: num(s.openingCash),
     partners: partners,
+    loan: {
+      enabled: !!s.loansEnabled,
+      lenderId: linkedLoan ? linkedLoan.lenderId : (partners[0] ? partners[0].id : ''),
+      borrowerId: linkedLoan ? linkedLoan.borrowerId : (partners[1] ? partners[1].id : (partners[0] ? partners[0].id : ''))
+    },
     tanks: tanks,
     nozzles: nozzles,
     rates: {
@@ -5815,7 +6131,20 @@ function onbStepHTML(step){
         '</div></div>';
     }).join('') +
     '<button class="onb-add" type="button" data-act="onb-add-partner">' + icon('plus', 14) + ' Add partner</button>' +
-    '<div class="onb-share-total">Total share: <b id="onb-share-total">' + round2(total) + '%</b> · must add up to 100%</div>';
+    '<div class="onb-share-total">Total share: <b id="onb-share-total">' + round2(total) + '%</b> · must add up to 100%</div>' +
+    (d.partners.length > 1 ?
+    '<div class="onb-row" style="margin-top:14px"><div class="onb-row-top"><span class="onb-row-title">Partner loan (optional)</span><span class="badge gray">Optional</span></div>' +
+      '<label class="switch full"><input type="checkbox" id="onb-loan-enabled" data-onchange="onb-loan-toggle"' + (d.loan.enabled ? ' checked' : '') + '><span class="track"></span><span>This pump has partner loans (one partner owes another)</span></label>' +
+      '<div id="onb-loan-fields" class="onb-grid" style="display:' + (d.loan.enabled ? 'grid' : 'none') + ';margin-top:10px">' +
+        '<div class="field"><label>Lender (paid the money)</label><select id="onb-loan-lender">' + d.partners.map(function(p){
+          return '<option value="' + attr(p.id) + '"' + (p.id === d.loan.lenderId ? ' selected' : '') + '>' + esc(p.name || 'Partner') + '</option>';
+        }).join('') + '</select></div>' +
+        '<div class="field"><label>Borrower (owes the money)</label><select id="onb-loan-borrower">' + d.partners.map(function(p){
+          return '<option value="' + attr(p.id) + '"' + (p.id === d.loan.borrowerId ? ' selected' : '') + '>' + esc(p.name || 'Partner') + '</option>';
+        }).join('') + '</select></div>' +
+      '</div>' +
+      '<div class="onb-tip">Only needed when one partner actually owes money to another. Leave it off for a normal partnership. You can add fixed loans later in Partners → Loan.</div>' +
+    '</div>' : '');
   }
   if(step === 2){
     return d.tanks.map(function(t, i){
@@ -5898,6 +6227,11 @@ function onbReviewHTML(){
   return '<div class="onb-review">' +
     card('Business', d.pumpName || '-', (d.address ? esc(d.address) + '<br>' : '') + (d.phone ? esc(d.phone) : '')) +
     card('Partners', d.partners.length + (d.partners.length === 1 ? ' partner' : ' partners'), partnerNames) +
+    (d.loan && d.loan.enabled ? card('Partner loan', 'Tracked', (function(){
+      const ln = d.partners.filter(function(p){ return p.id === d.loan.lenderId; })[0];
+      const br = d.partners.filter(function(p){ return p.id === d.loan.borrowerId; })[0];
+      return esc((br && br.name) || 'Partner') + ' owes ' + esc((ln && ln.name) || 'Partner') + ' · amount set by capital share';
+    })()) : '') +
     card('Storage', d.tanks.length + (d.tanks.length === 1 ? ' tank' : ' tanks'), tankLines) +
     card('Dispensers', d.nozzles.length + (d.nozzles.length === 1 ? ' nozzle' : ' nozzles'), nozzleLines) +
     card('Selling rates', 'Petrol ' + (num(d.rates.petrol) ? money0(d.rates.petrol) : '—') + ' / L', 'Diesel ' + (num(d.rates.diesel) ? money0(d.rates.diesel) : '—') + ' / L') +
@@ -5941,6 +6275,14 @@ function onbCapture(){
     d.partners = d.partners.map(function(p, i){
       return {id:p.id, name:val('onb-p-name-' + i).trim(), role:val('onb-p-role-' + i).trim() || 'Partner', share:n('onb-p-share-' + i)};
     });
+    const loanEl = $('#onb-loan-enabled');
+    const lenderEl = $('#onb-loan-lender');
+    const borrowerEl = $('#onb-loan-borrower');
+    d.loan = {
+      enabled: !!(loanEl && loanEl.checked),
+      lenderId: lenderEl ? lenderEl.value : (d.loan ? d.loan.lenderId : ''),
+      borrowerId: borrowerEl ? borrowerEl.value : (d.loan ? d.loan.borrowerId : '')
+    };
   }
   if(ONB.step === 2){
     d.tanks = d.tanks.map(function(t, i){
@@ -5978,6 +6320,12 @@ function onbValidate(step){
     }
     const total = sum(d.partners, function(p){ return num(p.share); });
     if(Math.abs(total - 100) > 0.01) return 'Partner shares must add up to 100% (they add up to ' + round2(total) + '%).';
+    if(d.loan && d.loan.enabled){
+      if(d.partners.length < 2) return 'A partner loan needs at least two partners.';
+      const ids = d.partners.map(function(p){ return p.id; });
+      if(ids.indexOf(d.loan.lenderId) < 0 || ids.indexOf(d.loan.borrowerId) < 0) return 'Choose who lends and who borrows for the partner loan.';
+      if(d.loan.lenderId === d.loan.borrowerId) return 'The lender and borrower must be different partners.';
+    }
   }
   if(step === 2){
     if(!d.tanks.length) return 'Add at least one tank.';
@@ -6052,6 +6400,25 @@ function onbApply(){
   DB.partners = d.partners.map(function(p){
     return {id:p.id || uid('p'), name:p.name, role:p.role || 'Partner', share:round2(num(p.share))};
   });
+  DB.settings.loansEnabled = !!(d.loan && d.loan.enabled);
+  DB.settings.loansInitialized = true;
+  if(DB.settings.loansEnabled && DB.partners.length >= 2){
+    const lenderId = (d.loan && d.loan.lenderId) || DB.partners[0].id;
+    const borrowerId = (d.loan && d.loan.borrowerId) || DB.partners[1].id;
+    if(lenderId !== borrowerId){
+      const linked = (DB.loans || []).find(function(l){ return l.linkCapital; });
+      if(linked){
+        linked.lenderId = lenderId;
+        linked.borrowerId = borrowerId;
+      } else if(!(DB.loans || []).length){
+        DB.loans.push({
+          id:uid('loan'), lenderId:lenderId, borrowerId:borrowerId,
+          principal:0, linkCapital:true, date:todayISO(),
+          note:'Investment share funded by ' + partnerName(lenderId), createdAt:Date.now()
+        });
+      }
+    }
+  }
   DB.tanks = d.tanks.map(function(t){
     return {id:t.id || uid('tank'), name:t.name, product:t.product || 'petrol', capacity:round2(num(t.capacity)), opening:round2(num(t.opening)), openingRate:round2(num(t.openingRate))};
   });

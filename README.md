@@ -81,6 +81,20 @@ The first Google account that signs in on an upgraded phone claims the old singl
 After that, any other Google account starts with its own empty hisab — never the first account's
 records.
 
+### Partners and loans
+
+- A pump can have **one, two or more partners**. Their profit shares must add up to 100%.
+- **Partner loans are optional and off by default.** Turn on **Track partner loans** in
+  Settings → Partners, or answer the loan question in the setup wizard.
+- A loan can run in **either direction** between any two partners, as a **fixed amount** or
+  **linked to the borrower's capital share**.
+- Repayments are recorded against a specific loan. Each repayment can also be saved as the
+  borrower's drawing so cash in hand and settlement stay correct.
+- When loans are off, the Loan tab, loan totals and loan reminders are hidden. Loan records are
+  kept if the switch is later turned off.
+- Accounts created before this feature keep their old loan automatically: the app recreates
+  "second partner's capital share funded by the first partner" as a real loan on first launch.
+
 ### Offline behaviour
 
 - The phone keeps working with no internet. Entries are stored locally and queued.
