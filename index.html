@@ -953,7 +953,9 @@ function legacyLoanSeed(db){
   db.loans = db.loans || [];
   const firstInv = (db.investments || []).slice().sort(function(a,b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; })[0];
   const loan = {
-    id:uid('loan'), lenderId:lender.id, borrowerId:borrower.id,
+    // A stable id means two phones migrating the same account create the same
+    // loan instead of duplicates when they sync.
+    id:'loan_cap_' + borrower.id, lenderId:lender.id, borrowerId:borrower.id,
     principal:0, linkCapital:true,
     date:(firstInv && firstInv.date) || todayISO(),
     note:'Investment share funded by ' + (lender.name || 'the first partner'),
