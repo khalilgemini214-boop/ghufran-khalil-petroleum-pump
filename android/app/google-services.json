@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "920612716021-hnlivr5calsa6qn1rmtrif4uo60e3veh.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ghufrankhalil.petroleumpump",
+            "certificate_hash": "956120ddd4f54b75eff41f15ff2dd2f3e6447db4"
+          }
+        },
+        {
           "client_id": "920612716021-k7gro2gvl0l4in9o6ej7acadntg0eh41.apps.googleusercontent.com",
           "client_type": 3
         }

@@ -17,7 +17,8 @@ isolated from every other account.
 
 1. Open the **Actions** tab of this repository.
 2. Open the latest **Build Android APK** run.
-3. Download **Ghufran-Khalil-Petroleum-Pump-APK**.
+3. Download the **Ghufran-Khalil-Petroleum-Pump-APK-SHA1-…** artifact (the suffix is the APK
+   signing fingerprint, not part of the app name).
 4. Unzip it and install `Ghufran-Khalil-Petroleum-Pump.apk` on the phone.
    Android will ask to allow installs from unknown apps — allow it for the browser/file manager you used.
 5. Open the app once **with internet**. It will download the current version and cache it.
@@ -89,11 +90,19 @@ records.
 
 ### Google sign-in in the Android APK
 
-Google blocks OAuth inside embedded WebViews. The live web app opened in Chrome signs in normally.
-If the APK shows **“disallowed_useragent”** (or the Google window closes immediately), the native
-Google Sign-In plugin is required: `@capacitor-firebase/authentication` plus `google-services.json`
-in `android/app/` and the APK signing SHA-1 added to the Firebase Android app. That is a native
-change and needs a new APK build. The web app continues to work without it.
+The APK uses native Google Sign-In through `@capacitor-firebase/authentication`, then signs the
+same Google ID token into the web Firebase SDK so Firestore works normally.
+
+- Android package: `com.ghufrankhalil.petroleumpump`
+- Firebase Android app: `android/app/google-services.json` (committed)
+- Signing SHA-1 registered in Firebase:
+  `95:61:20:DD:D4:F5:4B:75:EF:F4:1F:15:FF:2D:D2:F3:E6:44:7D:B4`
+- CI caches the debug keystore so this SHA-1 stays the same between builds.
+- APK artifacts are named `Ghufran-Khalil-Petroleum-Pump-APK-SHA1-<sha>`.
+
+If the keystore cache is ever lost, the build produces a new SHA-1 in the artifact name. Add that
+fingerprint to the Firebase Android app, download `google-services.json` again, commit it, and
+rebuild.
 
 ### Firestore layout
 
