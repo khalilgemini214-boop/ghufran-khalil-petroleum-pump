@@ -1,8 +1,8 @@
-# Ghufran Khalil Petroleum Pump
+# Petroleum Pump
 
-A complete, offline-first fuel station hisab app for **Ghufran Khalil Petroleum Pump**.
-It runs as a normal web page, installs as an Android APK, and updates itself from GitHub
-without reinstalling the APK.
+A complete, offline-first fuel station hisab app. Each user signs in and enters their own
+business/pump name, which is shown throughout the app. It runs as a normal web page, installs as
+an Android APK, and updates itself from GitHub without reinstalling the APK.
 
 Sign in with Google once, finish the guided pump setup, and every sale, purchase, payment and
 expense syncs through Firebase to every phone on that Google account. Each account is fully
@@ -17,17 +17,18 @@ isolated from every other account.
 
 1. Open the **Actions** tab of this repository.
 2. Open the latest **Build Android APK** run.
-3. Download the **Ghufran-Khalil-Petroleum-Pump-APK-SHA1-…** artifact (the suffix is the APK
+3. Download the **Petroleum-Pump-APK-SHA1-…** artifact (the suffix is the APK
    signing fingerprint, not part of the app name).
-4. Unzip it and install `Ghufran-Khalil-Petroleum-Pump.apk` on the phone.
+4. Unzip it and install `Petroleum-Pump.apk` on the phone.
    Android will ask to allow installs from unknown apps — allow it for the browser/file manager you used.
 5. Open the app once **with internet**. It will download the current version and cache it.
 
 > The APK is a one-time install. Future app updates are pushed to GitHub Pages and are picked up
 > automatically the next time the app opens online. You do **not** need a new APK for normal updates.
 >
-> Each CI debug APK can be signed with a different key. If you ever need to install a newer APK over
-> the old one, take a backup and uninstall the old app first. Normal web updates never need this.
+> The CI signing keystore is cached, so all builds keep the same SHA-1. If the cache is ever lost,
+> the new SHA-1 appears in the APK artifact name; add it to Firebase and download
+> `google-services.json` again.
 
 ---
 
@@ -98,7 +99,7 @@ same Google ID token into the web Firebase SDK so Firestore works normally.
 - Signing SHA-1 registered in Firebase:
   `95:61:20:DD:D4:F5:4B:75:EF:F4:1F:15:FF:2D:D2:F3:E6:44:7D:B4`
 - CI caches the debug keystore so this SHA-1 stays the same between builds.
-- APK artifacts are named `Ghufran-Khalil-Petroleum-Pump-APK-SHA1-<sha>`.
+- APK artifacts are named `Petroleum-Pump-APK-SHA1-<sha>`.
 
 If the keystore cache is ever lost, the build produces a new SHA-1 in the artifact name. Add that
 fingerprint to the Firebase Android app, download `google-services.json` again, commit it, and

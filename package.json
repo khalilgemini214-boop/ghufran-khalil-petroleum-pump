@@ -1,8 +1,8 @@
 {
-  "name": "ghufran-khalil-petroleum-pump",
+  "name": "petroleum-pump",
   "version": "1.0.0",
   "private": true,
-  "description": "Ghufran Khalil Petroleum Pump — fuel station hisab, Android app and live web updates",
+  "description": "Petroleum Pump — fuel station hisab, Android app and live web updates",
   "scripts": {
     "build": "node scripts/build-web.js",
     "sync": "npm run build && cap sync android",

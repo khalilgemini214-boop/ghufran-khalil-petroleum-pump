@@ -1,7 +1,7 @@
 {
-  "name": "Ghufran Khalil Petroleum Pump",
-  "short_name": "GK Pump",
-  "description": "Fuel station hisab, sales, stock, partners and reports",
+  "name": "Petroleum Pump",
+  "short_name": "Petroleum Pump",
+  "description": "Fuel station hisab, sales, purchases, stock, partners and reports",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

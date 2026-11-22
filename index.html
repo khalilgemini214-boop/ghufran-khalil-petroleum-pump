@@ -9,7 +9,7 @@
 <meta name="app-build" content="__BUILD__" />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="apple-touch-icon" href="./icon-192.png" />
-<title>Ghufran Khalil Petroleum Pump — Hisab</title>
+<title>Petroleum Pump</title>
 <style>
 /* ============ TOKENS ============ */
 :root{
@@ -666,7 +666,7 @@ html[data-theme="dark"] .onb-error{color:#ff9a92}
 
 <script>
 /* ==========================================================================
-   GHUFRAN KHALIL PETROLEUM PUMP — HISAB
+   PETROLEUM PUMP — HISAB
    Single-file, offline-first fuel station accounts.
    Data lives in per-Google-account localStorage and, when signed in, syncs
    to Firebase Authentication + Firestore. Use Settings → Backup for a copy.
@@ -875,6 +875,7 @@ function moneyField(id, label, value, opts){
 /* ---------------- DATA ---------------- */
 /* Local data is namespaced per Google account. Two emails on the same phone
    can never read or overwrite each other's hisab. */
+const APP_NAME = 'Petroleum Pump';
 const DB_KEY_BASE = 'gkpp_data_v1';
 const DB_USER_PREFIX = 'gkpp_user_';
 const LAST_UID_KEY = 'gkpp_last_uid_v1';
@@ -886,14 +887,14 @@ const THEME_KEY = 'gkpp_theme';
 function seedData(){
   const d = todayISO();
   return {
-    meta:{ version:1, createdAt:new Date().toISOString(), app:'Ghufran Khalil Petroleum Pump' },
+    meta:{ version:1, createdAt:new Date().toISOString(), app:APP_NAME },
     settings:{
-      pumpName:'Ghufran Khalil Petroleum Pump',
+      pumpName:'',
       address:'', phone:'', openingCash:0, openingBank:0, theme:'light'
     },
     partners:[
-      {id:'p1', name:'Khalil Ullah', role:'Managing Partner', share:50},
-      {id:'p2', name:'Samiullah Ghufran', role:'Partner', share:50}
+      {id:'p1', name:'', role:'Managing Partner', share:50},
+      {id:'p2', name:'', role:'Partner', share:50}
     ],
     products:[
       {id:'petrol', name:'Petrol', color:'#f5a524'},
@@ -943,7 +944,7 @@ function migrate(data){
     if(!Array.isArray(out[k])) out[k] = base[k];
   });
   out.rates = Object.assign({}, base.rates, data.rates||{});
-  out.loans = []; // loans are calculated from Ghufran's investment share now
+  out.loans = []; // loans are calculated from the borrowing partner's investment share
   // Cash and bank are live accounts now. Drop the old empty manual cash account.
   if(Array.isArray(out.accounts)){
     const oldCash = out.accounts.find(a=>a.id==='acc_cash');
@@ -991,7 +992,7 @@ try {
       localStorage.setItem('gkpp_zero_capital_v1', '1');
       upgraded = true;
     }
-    // One-time upgrade: the loan is now calculated from Ghufran's investment share, not fixed.
+    // One-time upgrade: the loan is now calculated from the borrowing partner's investment share, not fixed.
     if(localStorage.getItem('gkpp_derived_loan_v1') !== '1'){
       DB.loans = [];
       localStorage.setItem('gkpp_derived_loan_v1', '1');
@@ -1032,9 +1033,20 @@ function restoreDBFromBackup(data){
   DB = migrate(data);
   if(stationId) DB.meta.stationId = stationId;
   if(wasSetUp){ DB.settings.setupComplete = true; DB.settings.setupDismissed = true; }
-  document.title = DB.settings.pumpName + ' — Hisab';
+  document.title = appTitle();
 }
 function partnerById(id){ return DB.partners.find(p=>p.id===id) || {name:'—', share:0, id:''}; }
+function businessName(){
+  return String((DB && DB.settings && DB.settings.pumpName) || '').trim();
+}
+function displayName(){ return businessName() || APP_NAME; }
+function appTitle(){ return businessName() ? businessName() + ' — ' + APP_NAME : APP_NAME; }
+function partnerName(id, fallback){
+  const p = partnerById(id);
+  return p && p.name && String(p.name).trim() ? String(p.name).trim() : (fallback || 'Partner');
+}
+function funderName(){ return partnerName('p1', 'Partner 1'); }
+function borrowerName(){ return partnerName('p2', 'Partner 2'); }
 function productById(id){ return DB.products.find(p=>p.id===id) || {id:id, name:id, color:'#999'}; }
 function nozzleById(id){ return DB.nozzles.find(n=>n.id===id); }
 function supplierById(id){ return DB.suppliers.find(s=>s.id===id) || {name:'—'}; }
@@ -1076,6 +1088,12 @@ const PAGES = [
   {id:'settings', label:'Settings', icon:'gear'}
 ];
 const BOTTOM_PAGES = ['dashboard','sales','purchases','expenses'];
+const EXTRA_PAGES = [
+  {id:'resets', label:'Meter resets', icon:'refresh'}
+];
+function pageInfo(id){
+  return PAGES.find(x=>x.id===id) || EXTRA_PAGES.find(x=>x.id===id) || PAGES[0];
+}
 const PAGE_FAB = {
   dashboard:{act:'quick-add', label:'New entry'},
   sales:{act:'new-sale', label:'New reading'},
@@ -1163,14 +1181,14 @@ function toggleTheme(){
 
 /* ---------------- NAV / SHELL ---------------- */
 function shellHTML(page){
-  const p = PAGES.find(x=>x.id===page) || PAGES[0];
+  const p = pageInfo(page);
   const cash = cashInHand();
   return ''+
   '<div class="app">'+
     '<aside class="sidebar">'+
       '<div class="brand">'+
         '<div class="brand-logo">'+icon('pump',23)+'</div>'+
-        '<div style="min-width:0"><div class="brand-name">'+esc(DB.settings.pumpName)+'</div><div class="brand-sub">Fuel Station · Hisab</div></div>'+
+        '<div style="min-width:0"><div class="brand-name">'+esc(displayName())+'</div><div class="brand-sub">Fuel Station · Hisab</div></div>'+
       '</div>'+
       '<div class="nav-label">Operations</div>'+
       '<div class="nav">'+
@@ -1240,6 +1258,7 @@ function bottomNavHTML(){
 }
 function render(){
   applyTheme();
+  document.title = appTitle();
   const ledgerOpen = UI.page === 'accounts' && !!(UI.accId && accountById(UI.accId));
   document.body.classList.toggle('ledger-open', ledgerOpen);
   $('#app').innerHTML = shellHTML(UI.page);
@@ -1259,12 +1278,21 @@ function afterRender(){
   if(UI.page === 'reports') mountReports();
 }
 function nav(page){
-  if(!PAGES.some(p=>p.id===page)) return;
+  if(!PAGES.some(p=>p.id===page) && !EXTRA_PAGES.some(p=>p.id===page)) return;
   if(UI.page && UI.page !== page){
     UI.navStack.push(UI.page);
     if(UI.navStack.length > 20) UI.navStack.shift();
   }
   UI.page = page;
+  UI.accId = null;
+  UI.moreOpen = false;
+  closeSheet();
+  render();
+  window.scrollTo({top:0, behavior:'instant'});
+}
+function goBackPage(){
+  const prev = UI.navStack.length ? UI.navStack.pop() : 'settings';
+  UI.page = prev === 'resets' ? 'settings' : prev;
   UI.accId = null;
   UI.moreOpen = false;
   closeSheet();
@@ -1307,6 +1335,7 @@ function renderPage(id){
     case 'accounts': return pageAccounts();
     case 'reports': return pageReports();
     case 'settings': return pageSettings();
+    case 'resets': return pageResets();
     default: return pageDashboard();
   }
 }
@@ -1321,6 +1350,7 @@ document.addEventListener('click', function(e){
   const id = el.getAttribute('data-id');
   switch(act){
     case 'nav': nav(el.getAttribute('data-page')); break;
+    case 'go-back': goBackPage(); break;
     case 'more': openMoreSheet(); break;
     case 'close-sheet': closeSheet(); break;
     case 'theme': toggleTheme(); break;
@@ -1737,7 +1767,7 @@ function allActivity(){
   DB.expenses.forEach(x=>rows.push({date:x.date, ts:x.createdAt||0, type:'Expense', title:x.category, sub:x.description||'Expense', amount:-x.amount, tone:'red', icon:'receipt'}));
   DB.salaryPayments.forEach(p=>rows.push({date:p.date, ts:p.createdAt||0, type:'Salary', title:'Salary · '+(DB.staff.find(s=>s.id===p.staffId)||{name:'Staff'}).name, sub:p.type||'Salary', amount:-p.amount, tone:'red', icon:'users'}));
   DB.drawings.forEach(d=>rows.push({date:d.date, ts:d.createdAt||0, type:'Drawing', title:'Drawing · '+partnerById(d.partnerId).name, sub:d.note||'Partner withdrawal', amount:-d.amount, tone:'amber', icon:'wallet'}));
-  DB.loanRepayments.forEach(r=>rows.push({date:r.date, ts:r.createdAt||0, type:'Loan repayment', title:'Loan repayment received', sub:r.note||'From Samiullah Ghufran', amount:r.amount, tone:'violet', icon:'handshake'}));
+  DB.loanRepayments.forEach(r=>rows.push({date:r.date, ts:r.createdAt||0, type:'Loan repayment', title:'Loan repayment received', sub:r.note||('From '+borrowerName()), amount:r.amount, tone:'violet', icon:'handshake'}));
   DB.investments.forEach(i=>{
     const eff = invAmount(i);
     rows.push({date:i.date, ts:i.createdAt||0, type:eff<0?'Withdrawal':'Capital', title:(eff<0?'Capital withdrawn':'Investment')+' · '+(i.split==='both'?'Shared':partnerById(i.partnerId).name), sub:i.label||'', amount:eff, tone:'amber', icon:'bank'});
@@ -1822,7 +1852,7 @@ function pageDashboard(){
       '<div class="hero-stat"><div class="l">Cash collected today</div><div class="v num">'+money0(today.cash)+'</div><div class="s">'+(today.count?today.count+(today.count===1?' meter entry':' meter entries'):'No entries yet')+'</div></div>'+
       '<div class="hero-stat"><div class="l">Net profit today</div><div class="v num">'+money0(todayP.net)+'</div><div class="s">profit after expenses</div></div>'+
       '<div class="hero-stat"><div class="l">Net profit this month</div><div class="v num">'+money0(p.net)+'</div><div class="s">'+(p.netMargin>=0?'+':'')+p.netMargin.toFixed(1)+'% net margin</div></div>'+
-      '<div class="hero-stat"><div class="l">Loan outstanding</div><div class="v num">'+money0(loan)+'</div><div class="s">Ghufran → Khalil</div></div>'+
+      '<div class="hero-stat"><div class="l">Loan outstanding</div><div class="v num">'+money0(loan)+'</div><div class="s">'+esc(borrowerName())+' → '+esc(funderName())+'</div></div>'+
     '</div>'+
   '</div>'+
 
@@ -1899,7 +1929,7 @@ function pageDashboard(){
       '<div class="card-head"><div><h3>Dues & alerts</h3><p>Keep an eye on these</p></div></div>'+
       '<div class="card-body" style="display:flex;flex-direction:column;gap:10px">'+
         (cash<0?'<div class="alert red">'+icon('alert',16)+'<div><b>Cash in hand is negative.</b> Check opening cash in Settings, or look for a purchase/expense paid twice.</div></div>':'')+
-        (loan>0?'<div class="alert violet" style="background:var(--violet-soft);border-color:color-mix(in srgb,var(--violet) 25%,transparent);color:#5b23b8"><div style="flex:1"><b>'+money0(loan)+'</b> loan still to be recovered from Ghufran\'s profit share.</div></div>':'<div class="alert green"><div style="flex:1">Loan to Ghufran is fully settled.</div></div>')+
+        (loan>0?'<div class="alert violet" style="background:var(--violet-soft);border-color:color-mix(in srgb,var(--violet) 25%,transparent);color:#5b23b8"><div style="flex:1"><b>'+money0(loan)+'</b> loan still to be recovered from '+esc(borrowerName())+'\'s profit share.</div></div>':'<div class="alert green"><div style="flex:1">Loan to '+esc(borrowerName())+' is fully settled.</div></div>')+
         '<div class="stat-line"><span class="k">'+icon('truck',14)+' Supplier payables</span><span class="v num">'+money0(payables)+'</span></div>'+
         '<div class="stat-line"><span class="k">'+icon('users',14)+' Customer credit</span><span class="v num">'+money0(receivables)+'</span></div>'+
         '<div class="stat-line"><span class="k">'+icon('calendar',14)+' Today\'s expenses</span><span class="v num">'+money0(sum(DB.expenses.filter(x=>isToday(x.date)),x=>x.amount)+sum(DB.salaryPayments.filter(x=>isToday(x.date)),x=>x.amount))+'</span></div>'+
@@ -2809,8 +2839,9 @@ function partnerCapital(partnerId){
 function totalCapital(){ return round2(sum(DB.investments, i=>invAmount(i))); }
 function totalInvested(){ return round2(sum(DB.investments.filter(i=>invAmount(i) > 0), i=>invAmount(i))); }
 function totalWithdrawn(){ return round2(sum(DB.investments.filter(i=>invAmount(i) < 0), i=>-invAmount(i))); }
-// Ghufran's share of the net investment is funded by Khalil, so it is his loan.
-// Example: Rs 10 lac invested, 50% share -> Ghufran owes Rs 5 lac.
+// The borrowing partner's share of the net investment is funded by the other
+// partner, so it is treated as a loan. Example: Rs 10 lac invested, 50% share
+// -> the borrowing partner owes Rs 5 lac.
 function loanPrincipal(){ return round2(Math.max(0, partnerCapital('p2'))); }
 function loanTotal(){ return loanPrincipal(); }
 function loanRepaid(){ return round2(sum(DB.loanRepayments,r=>r.amount)); }
@@ -2833,7 +2864,7 @@ function pagePartners(){
       '<div class="stat-line"><span class="k">Profit share · '+monthName(mk)+'</span><span class="v num">'+money0(row.share)+'</span></div>'+
       '<div class="stat-line"><span class="k">Drawings this month</span><span class="v num">'+money0(row.drawn)+'</span></div>'+
       '<div class="stat-line" style="border-top:1px dashed var(--line);margin-top:5px;padding-top:9px"><span class="k strong" style="color:var(--ink)">Net payable</span><span class="v num" style="font-size:15px">'+money0(row.net)+'</span></div>'+
-      (p.id==='p2' && loan>0 ? '<div class="alert amber" style="margin-top:10px;padding:8px 10px"><div>Owes Khalil <b>'+money0(loan)+'</b> on loan</div></div>' : '')+
+      (p.id==='p2' && loan>0 ? '<div class="alert amber" style="margin-top:10px;padding:8px 10px"><div>Owes '+esc(funderName())+' <b>'+money0(loan)+'</b> on loan</div></div>' : '')+
     '</div>';
   }).join('');
   return ''+
@@ -2959,7 +2990,7 @@ function settlementTabHTML(st){
   const gh = st.rows.find(r=>r.partner.id==='p2') || st.rows[1] || st.rows[0];
   const loan = loanOutstanding();
   const suggest = gh ? Math.min(loan, Math.max(0, gh.net)) : 0;
-  return '<div class="print-only" style="margin-bottom:14px"><h1 style="font-size:18px">'+esc(DB.settings.pumpName)+'</h1><div style="font-size:12px;color:#444">Partner settlement · '+monthName(mk)+'</div></div>'+
+  return '<div class="print-only" style="margin-bottom:14px"><h1 style="font-size:18px">'+esc(displayName())+'</h1><div style="font-size:12px;color:#444">Partner settlement · '+monthName(mk)+'</div></div>'+
   '<div class="grid k23">'+
     '<div class="card"><div class="card-head"><div><h3>Settlement · '+monthName(mk)+'</h3><p>Profit split after all expenses</p></div><button class="btn sm ghost no-print" data-act="print">'+icon('print',14)+' Print</button></div>'+
       '<div class="card-body">'+
@@ -2972,12 +3003,12 @@ function settlementTabHTML(st){
           st.rows.map(r=>'<tr><td><b>'+esc(r.partner.name)+'</b></td><td class="r">'+r.partner.share+'%</td><td class="r num">'+money0(r.share)+'</td><td class="r num">'+money0(r.drawn)+'</td><td class="r num"><b>'+money0(r.net)+'</b></td></tr>').join('')+
         '</tbody></table></div>'+
         (loan>0?'<div class="alert amber" style="margin-top:14px;display:block">'+ 
-          '<div style="display:flex;gap:8px;align-items:flex-start">'+icon('handshake',16)+'<div><b>Loan recovery plan</b><br>Ghufran owes Khalil '+money0(loan)+'. After this month\'s drawings, his available share is '+money0(Math.max(0,gh?gh.net:0))+'.</div></div>'+
+          '<div style="display:flex;gap:8px;align-items:flex-start">'+icon('handshake',16)+'<div><b>Loan recovery plan</b><br>'+esc(borrowerName())+' owes '+esc(funderName())+' '+money0(loan)+'. After this month\'s drawings, the available share is '+money0(Math.max(0,gh?gh.net:0))+'.</div></div>'+
           '<div class="divider" style="border-color:color-mix(in srgb,var(--amber) 30%,transparent)"></div>'+
-          '<div class="stat-line"><span class="k">Suggested transfer to Khalil</span><span class="v num">'+money0(suggest)+'</span></div>'+
-          '<div class="stat-line"><span class="k">Remaining to Ghufran</span><span class="v num">'+money0(Math.max(0,(gh?gh.net:0)-suggest))+'</span></div>'+
-          (suggest>0?'<button class="btn sm block" style="margin-top:9px" data-act="repay-loan-suggested" data-amount="'+suggest+'">'+icon('check',14)+' Pay '+money0(suggest)+' to Khalil from Ghufran\'s share</button><div class="tiny" style="margin-top:5px">This records both the loan repayment and Ghufran\'s drawing, keeping cash correct.</div>':'<div class="tiny" style="margin-top:6px">No profit available to repay this month. The loan continues.</div>')+
-        '</div>':'<div class="alert green" style="margin-top:14px">'+icon('check',16)+'<div>Loan is fully settled. Ghufran now receives his full profit share.</div></div>')+
+          '<div class="stat-line"><span class="k">Suggested transfer to '+esc(funderName())+'</span><span class="v num">'+money0(suggest)+'</span></div>'+
+          '<div class="stat-line"><span class="k">Remaining to '+esc(borrowerName())+'</span><span class="v num">'+money0(Math.max(0,(gh?gh.net:0)-suggest))+'</span></div>'+
+          (suggest>0?'<button class="btn sm block" style="margin-top:9px" data-act="repay-loan-suggested" data-amount="'+suggest+'">'+icon('check',14)+' Pay '+money0(suggest)+' to '+esc(funderName())+' from '+esc(borrowerName())+'\'s share</button><div class="tiny" style="margin-top:5px">This records both the loan repayment and the drawing, keeping cash correct.</div>':'<div class="tiny" style="margin-top:6px">No profit available to repay this month. The loan continues.</div>')+
+        '</div>':'<div class="alert green" style="margin-top:14px">'+icon('check',16)+'<div>Loan is fully settled. '+esc(borrowerName())+' now receives the full profit share.</div></div>')+
         '<div style="display:flex;gap:8px;margin-top:14px" class="no-print"><button class="btn ghost block" data-act="repay-loan">'+icon('handshake',15)+' Loan repayment</button><button class="btn ghost block" data-act="new-drawing">'+icon('wallet',15)+' Drawing</button></div>'+
       '</div></div>'+
     '<div style="display:flex;flex-direction:column;gap:14px">'+
@@ -3731,7 +3762,7 @@ function pageReports(){
   const custRows = DB.customers.map(c=>({c, due:customerDue(c.id)})).filter(x=>x.due!==0);
   const missingCost = DB.products.filter(prod=>p.byProduct[prod.id].litres > 0 && avgCost(prod.id, mk+'-31') === 0);
   return ''+
-  '<div class="print-only" style="margin-bottom:16px"><h1 style="font-size:20px">'+esc(DB.settings.pumpName)+'</h1>'+
+  '<div class="print-only" style="margin-bottom:16px"><h1 style="font-size:20px">'+esc(displayName())+'</h1>'+
     '<div style="font-size:12px;color:#444">'+(DB.settings.address?esc(DB.settings.address)+' · ':'')+(DB.settings.phone?esc(DB.settings.phone)+' · ':'')+'Monthly report · '+monthName(mk)+'</div></div>'+
   '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px" class="no-print">'+
     '<div><h2 style="font-size:18px;font-weight:850;letter-spacing:-.02em">Reports & profit / loss</h2><div class="tiny muted" style="margin-top:2px">Complete hisab for '+monthName(mk)+'</div></div>'+
@@ -3798,7 +3829,7 @@ function pageReports(){
       '<div class="card-body" style="padding-top:4px"><div class="table-wrap"><table class="tbl"><thead><tr><th>Partner</th><th class="r">Share</th><th class="r">Profit</th><th class="r">Drawings</th><th class="r">Payable</th></tr></thead><tbody>'+
         st.rows.map(r=>'<tr><td><b>'+esc(r.partner.name)+'</b></td><td class="r">'+r.partner.share+'%</td><td class="r num">'+money0(r.share)+'</td><td class="r num">'+money0(r.drawn)+'</td><td class="r num"><b>'+money0(r.net)+'</b></td></tr>').join('')+
       '</tbody></table></div>'+
-      '<div class="divider"></div><div class="stat-line"><span class="k">Loan outstanding (Ghufran → Khalil)</span><span class="v num down">'+money0(loanOutstanding())+'</span></div>'+
+      '<div class="divider"></div><div class="stat-line"><span class="k">Loan outstanding ('+esc(borrowerName())+' → '+esc(funderName())+')</span><span class="v num down">'+money0(loanOutstanding())+'</span></div>'+
       '</div></div>'+
     '<div class="card"><div class="card-head"><div><h3>Stock summary</h3><p>As of today</p></div></div>'+
       '<div class="card-body" style="padding-top:4px"><div class="table-wrap"><table class="tbl"><thead><tr><th>Product</th><th class="r">Opening</th><th class="r">Purchased</th><th class="r">Sold</th><th class="r">Book</th><th class="r">Value</th></tr></thead><tbody>'+
@@ -3836,7 +3867,7 @@ function pageSettings(){
   '<div class="grid k2">'+
     '<div class="card"><div class="card-head"><div><h3>Business details</h3><p>Shown on reports and printouts</p></div></div>'+
       '<div class="card-body" style="display:flex;flex-direction:column;gap:12px">'+
-        '<div class="field"><label for="set-pumpName">Pump name</label><input id="set-pumpName" value="'+attr(s.pumpName)+'"></div>'+
+        '<div class="field"><label for="set-pumpName">Business / pump name</label><input id="set-pumpName" value="'+attr(s.pumpName)+'" placeholder="Shown in the app after you set it"></div>'+
         '<div class="field"><label for="set-address">Address</label><input id="set-address" value="'+attr(s.address||'')+'" placeholder="Village / city"></div>'+
         '<div class="field"><label for="set-phone">Phone</label><input id="set-phone" type="tel" value="'+attr(s.phone||'')+'" placeholder="03xx-xxxxxxx"></div>'+
         '<button class="btn" data-act="save-settings">'+icon('check',16)+' Save details</button>'+
@@ -3921,35 +3952,51 @@ function pageSettings(){
     '<div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">'+
       '<div class="small muted"><b style="color:var(--ink)">Sales</b><br>Closing meter − opening meter = litres. Litres × rate = sale amount. Cash received is added to cash; any balance becomes customer credit.</div>'+
       '<div class="small muted"><b style="color:var(--ink)">Profit</b><br>Sales − cost of the fuel sold (moving average buy rate at the time of each reading) − expenses − salaries = net profit. A later purchase never changes the profit of a reading already recorded. Your 50/50 split is shown under Partners → Settlement.</div>'+
-      '<div class="small muted"><b style="color:var(--ink)">Loan</b><br>Khalil funds the investment, so Ghufran\'s share of it is his loan. The loan grows automatically when you add a shared investment and reduces with each repayment. At zero, Ghufran receives his full profit share.</div>'+
+      '<div class="small muted"><b style="color:var(--ink)">Loan</b><br>The first partner funds the investment, so the second partner\'s share of it becomes a loan. The loan grows automatically when you add a shared investment and reduces with each repayment. At zero, the borrowing partner receives the full profit share.</div>'+
       '<div class="small muted"><b style="color:var(--ink)">Drawings</b><br>Cash a partner takes is recorded as a drawing. It reduces his payable share and the business cash, but never reduces net profit.</div>'+
     '</div></div>'+
-  '<div class="tiny muted" style="text-align:center;margin:22px 0 8px">Ghufran Khalil Petroleum Pump · Hisab v1 · Build '+esc(buildLabel())+'</div>'+
+  '<div class="tiny muted" style="text-align:center;margin:22px 0 8px">'+esc(displayName())+' · Hisab v1 · Build '+esc(buildLabel())+'</div>'+
   '';
 }
+function sortedMeterResets(){
+  return DB.meterResets.slice().sort((a,b)=> a.date===b.date ? (b.createdAt||0)-(a.createdAt||0) : (a.date<b.date?1:-1));
+}
+function meterResetRow(r){
+  const nz = nozzleById(r.nozzleId) || {dispenser:'Nozzle', name:''};
+  const diff = round2(num(r.reading) - num(r.previous));
+  return '<div class="row rec">'+
+    '<div class="partner-avatar c" style="width:34px;height:34px;border-radius:10px">'+icon('refresh',16)+'</div>'+
+    '<div class="row-main"><div class="row-title">'+esc(nz.dispenser)+' · '+esc(nz.name)+' <span class="badge gray">Reset</span></div>'+
+      '<div class="row-sub"><span>'+fmtDate(r.date)+'</span><span>·</span><span class="num">'+nfMoney.format(r.previous)+' → '+nfMoney.format(r.reading)+' L</span>'+(r.note?'<span>·</span><span>'+esc(r.note)+'</span>':'')+'</div></div>'+
+    '<div class="row-right"><div class="row-amt num">'+nfMoney.format(diff)+' L</div></div>'+
+    '<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-meter-reset" data-id="'+r.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div>'+
+  '</div>';
+}
 function meterResetCardHTML(){
-  const resets = DB.meterResets.slice().sort((a,b)=> a.date===b.date ? (b.createdAt||0)-(a.createdAt||0) : (a.date<b.date?1:-1));
+  const resets = sortedMeterResets();
+  const latest = resets.slice(0, 2);
   return '<div class="card" style="margin-top:14px">'+
-    '<div class="card-head"><div><h3>Meter resets</h3><p>When a dispenser meter was reset physically</p></div></div>'+
+    '<div class="card-head"><div><h3>Meter resets</h3><p>'+(resets.length ? 'Latest '+Math.min(2,resets.length)+' of '+resets.length+' resets' : 'When a dispenser meter was reset physically')+'</p></div></div>'+
     '<div class="card-body">'+
-      (resets.length ? '<div class="rows">'+resets.map(r=>{
-        const nz = nozzleById(r.nozzleId) || {dispenser:'Nozzle', name:''};
-        const diff = round2(num(r.reading) - num(r.previous));
-        return '<div class="row rec">'+
-          '<div class="partner-avatar c" style="width:34px;height:34px;border-radius:10px">'+icon('refresh',16)+'</div>'+
-          '<div class="row-main"><div class="row-title">'+esc(nz.dispenser)+' · '+esc(nz.name)+' <span class="badge gray">Reset</span></div>'+
-            '<div class="row-sub"><span>'+fmtDate(r.date)+'</span><span>·</span><span class="num">'+nfMoney.format(r.previous)+' → '+nfMoney.format(r.reading)+' L</span>'+(r.note?'<span>·</span><span>'+esc(r.note)+'</span>':'')+'</div></div>'+
-          '<div class="row-right"><div class="row-amt num">'+nfMoney.format(diff)+' L</div></div>'+
-          '<div class="row-actions no-print"><button class="mini-btn danger" data-act="del-meter-reset" data-id="'+r.id+'" aria-label="Delete">'+icon('trash',14)+'</button></div>'+
-        '</div>';
-      }).join('')+'</div>'
+      (latest.length ? '<div class="rows">'+latest.map(meterResetRow).join('')+'</div>'
+        + (resets.length > 2 ? '<button class="btn ghost sm block no-print" style="margin-top:10px" data-act="nav" data-page="resets">'+icon('refresh',14)+' View all '+resets.length+' resets</button>' : '')
       : '<div class="alert blue" style="align-items:center">'+icon('info',15)+'<div>If a dispenser meter is reset on the machine, record it here first. Past sales stay untouched and your next reading simply starts from the new number.</div></div>')+
     '</div></div>';
+}
+function pageResets(){
+  const resets = sortedMeterResets();
+  return '<div class="page-actions no-print" style="margin-bottom:14px"><button class="btn ghost sm" data-act="go-back">'+icon('arrowLeft',15)+' Back</button></div>'+
+    '<div class="card"><div class="card-head"><div><h3>All meter resets</h3><p>'+resets.length+' recorded reset'+(resets.length===1?'':'s')+' · newest first</p></div></div>'+
+      '<div class="card-body">'+
+        (resets.length ? '<div class="rows">'+resets.map(meterResetRow).join('')+'</div>'
+          : '<div class="alert blue" style="align-items:center">'+icon('info',15)+'<div>No meter resets recorded yet. When a dispenser meter is reset physically, record it from Settings → Nozzles → Reset.</div></div>')+
+      '</div>'+
+    '</div>';
 }
 function saveSettings(){
   const val = id => { const el=$('#'+id); return el?el.value:''; };
   const pumpName = val('set-pumpName').trim();
-  if(!pumpName){ toast('Pump name cannot be empty','err'); return; }
+  if(!pumpName){ toast('Business / pump name cannot be empty','err'); return; }
   DB.settings.pumpName = pumpName;
   DB.settings.address = val('set-address').trim();
   DB.settings.phone = val('set-phone').trim();
@@ -3972,7 +4019,7 @@ function saveSettings(){
       }
     }
   });
-  document.title = DB.settings.pumpName + ' — Hisab';
+  document.title = appTitle();
   save(); render();
   toast('Settings saved','ok');
 }
@@ -4231,7 +4278,7 @@ function openBackupText(){
 function downloadBackupFromModal(){
   const ta = $('#backup-json');
   if(!ta) return;
-  const name = 'ghufran-khalil-hisab-' + todayISO() + '.json';
+  const name = 'petroleum-pump-hisab-' + todayISO() + '.json';
   downloadFile(name, ta.value, 'application/json');
   toast('Backup file downloaded','ok');
 }
@@ -4252,7 +4299,7 @@ function shareBackupText(){
   const ta = $('#backup-json');
   if(!ta) return;
   if(typeof navigator.share !== 'function'){ toast('Sharing is not available here — use Copy all','err'); return; }
-  navigator.share({title:'Ghufran Khalil Petroleum Pump backup', text: ta.value})
+  navigator.share({title:displayName() + ' backup', text: ta.value})
     .then(()=>toast('Backup shared','ok'))
     .catch(()=>toast('Share cancelled or unavailable — use Copy all','err'));
 }
@@ -4271,7 +4318,7 @@ function openRestoreText(){
       let data;
       try { data = JSON.parse((fd.restoreJson||'').trim()); }
       catch(e){ fail('This is not valid backup text. Copy the complete text and try again.'); }
-      if(!data || !data.settings || !Array.isArray(data.sales)) fail('This text is not a valid Ghufran Khalil backup.');
+      if(!data || !data.settings || !Array.isArray(data.sales)) fail('This text is not a valid Petroleum Pump backup.');
       restoreDBFromBackup(data);
       save(); render();
       return {message:'Backup restored'};
@@ -4373,7 +4420,7 @@ function exportDailyCSV(){
   csvExport('daily-summary-'+mk+'.csv', rows);
 }
 function exportFullCSV(){
-  const rows=[['Ghufran Khalil Petroleum Pump — full export'],['Generated',new Date().toLocaleString('en-GB')],[]];
+  const rows=[[displayName() + ' - full export'],['Generated',new Date().toLocaleString('en-GB')],[]];
   rows.push(['SALES']); rows.push(['Date','Product','Litres','Rate','Amount','Cash','Credit','Customer']);
   DB.sales.forEach(s=>rows.push([s.date,productById(s.product).name,s.litres,s.rate,s.amount,s.cash,s.credit,s.customerName||'']));
   rows.push([]); rows.push(['PURCHASES']); rows.push(['Date','Supplier','Product','Litres','Rate','Amount','Paid']);
@@ -4438,7 +4485,8 @@ const CLOUD_COLLECTIONS = ['partners','products','tanks','nozzles','sales','purc
 
 const CLOUD = {
   ready:false, configured:false, initializing:false, authBound:false, entering:false,
-  user:null, stationId:null, hasStation:false, status:'local', error:'', lastSync:0, enteredUid:null
+  user:null, stationId:null, hasStation:false, status:'local', error:'', lastSync:0, enteredUid:null,
+  resuming:false, resumedUid:null, backgroundBoot:false
 };
 const SYNC = {
   last:{}, unsubs:[], timer:null, renderTimer:null,
@@ -4553,7 +4601,8 @@ function saveCloudSession(){
   try {
     localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify({
       uid:CLOUD.user.uid, email:CLOUD.user.email,
-      name:CLOUD.user.name || '', photo:CLOUD.user.photo || ''
+      name:CLOUD.user.name || '', photo:CLOUD.user.photo || '',
+      loggedIn:true, savedAt:Date.now()
     }));
   } catch(e){}
 }
@@ -4663,12 +4712,40 @@ function cloudChipInner(){
 function cloudChipHTML(){
   return '<div class="cash-chip cloud-chip hide-xs ' + cloudStatusClass() + '" id="cloud-chip" title="Cloud sync status">' + cloudChipInner() + '</div>';
 }
+function unsyncedCount(){
+  if(!CLOUD.user || !CLOUD.stationId || CLOUD.resuming) return null;
+  if(!SYNC.last || !Object.keys(SYNC.last).length) return null;
+  let n = 0;
+  CLOUD_COLLECTIONS.forEach(function(coll){
+    const arr = DB[coll];
+    if(!Array.isArray(arr)) return;
+    arr.forEach(function(doc){
+      if(!doc) return;
+      if(!doc.id){ n++; return; }
+      if(SYNC.last[coll + '/' + doc.id] !== stableJSON(doc)) n++;
+    });
+  });
+  if(SYNC.last['settings/main'] !== cloudSettingsSig(DB.settings, DB.rates)) n++;
+  n += pendingDeletesFor(CLOUD.stationId).length;
+  return n;
+}
+function unsyncedDisplay(){
+  const n = unsyncedCount();
+  if(n !== null) return String(n);
+  if(!navigator.onLine || CLOUD.status === 'offline') return '—';
+  return 'Checking…';
+}
+function refreshUnsynced(){
+  const el = $('#unsynced-count');
+  if(el) el.textContent = unsyncedDisplay();
+}
 function cloudStatusRefresh(){
   const el = $('#cloud-chip');
   if(el){
     el.className = 'cash-chip cloud-chip hide-xs ' + cloudStatusClass();
     el.innerHTML = cloudChipInner();
   }
+  refreshUnsynced();
 }
 function cloudSetStatus(status){
   CLOUD.status = status;
@@ -4738,14 +4815,14 @@ function gateBusy(show, title, sub){
 }
 function gateBrandHTML(){
   return '<section class="gate-brand">' +
-    '<div class="gate-brand-top"><div class="gate-logo">' + icon('pump', 26) + '</div><div><div class="gate-name">' + esc(DB.settings.pumpName || 'Ghufran Khalil Petroleum Pump') + '</div><div class="gate-sub">Fuel Station · Hisab</div></div></div>' +
+    '<div class="gate-brand-top"><div class="gate-logo">' + icon('pump', 26) + '</div><div><div class="gate-name">' + esc(displayName()) + '</div><div class="gate-sub">Fuel Station · Hisab</div></div></div>' +
     '<div class="gate-hero"><div class="gate-eyebrow">One hisab · every device</div><h1>Your pump accounts, always in sync.</h1><p>Record a sale, purchase, payment or expense once. It is saved to your account and appears on every phone signed in to this pump.</p></div>' +
     '<ul class="gate-points">' +
       '<li><span class="gi">' + icon('cloud', 15) + '</span><span>Live sync for every add, edit and delete</span></li>' +
       '<li><span class="gi">' + icon('shield', 15) + '</span><span>Private to your login — nobody else can open it</span></li>' +
       '<li><span class="gi">' + icon('refresh', 15) + '</span><span>Works offline and uploads when the signal returns</span></li>' +
     '</ul>' +
-    '<div class="gate-brand-foot">Ghufran Khalil Petroleum Pump · Hisab v1</div>' +
+    '<div class="gate-brand-foot">' + APP_NAME + ' · Hisab v1</div>' +
   '</section>';
 }
 function gateShell(inner, wide){
@@ -4772,19 +4849,27 @@ function gateError(msg){
 }
 
 /* ---------------- boot / auth flow ---------------- */
-async function cloudBoot(){
+async function cloudBoot(background){
   CLOUD.configured = true;
-  gateLoading('Connecting to your hisab…', 'First load may take a few seconds');
+  if(!background) gateLoading('Connecting to your hisab…', 'First load may take a few seconds');
   try{
     await cloudInit(cloudCfg());
   } catch(e){
+    if(background){
+      CLOUD.status = navigator.onLine ? 'error' : 'offline';
+      CLOUD.error = e && e.message || '';
+      cloudStatusRefresh();
+      return;
+    }
     const session = cloudSession();
     if(session && session.uid){
       localSwitchUser(session);
       CLOUD.user = {uid:session.uid, email:session.email || '', name:session.name || '', photo:session.photo || ''};
       CLOUD.stationId = session.uid;
       CLOUD.status = 'offline';
-      startCloudApp();
+      CLOUD.backgroundBoot = true;
+      if(DB.settings.setupComplete) startCloudApp();
+      else startOnboarding();
       toast('Cloud is unreachable — working on this device', 'err');
     } else {
       showAuthScreen(e.message || 'Could not reach the cloud.');
@@ -4792,7 +4877,7 @@ async function cloudBoot(){
     return;
   }
   cloudBindAuth();
-  cloudCheckRedirect();
+  if(!background) cloudCheckRedirect();
 }
 async function cloudCheckRedirect(){
   if(!CLOUD.auth) return;
@@ -4808,16 +4893,40 @@ async function cloudCheckRedirect(){
 }
 function cloudAuthChanged(user){
   if(!user){
+    if(CLOUD.backgroundBoot){
+      // The app was opened from a saved local session. Keep it usable; the
+      // user can sign out or sign in again from Settings.
+      CLOUD.status = navigator.onLine ? 'connecting' : 'offline';
+      cloudStatusRefresh();
+      return;
+    }
     const wasSignedIn = !!(CLOUD.user || CLOUD.enteredUid || APP_STARTED);
     cloudStopSync();
     CLOUD.user = null;
     CLOUD.stationId = null;
     CLOUD.enteredUid = null;
     CLOUD.status = 'local';
+    CLOUD.backgroundBoot = false;
+    CLOUD.resuming = false;
+    CLOUD.resumedUid = null;
     clearCloudSession();
     APP_STARTED = false;
     localClearToGate(wasSignedIn);
     showAuthScreen();
+    return;
+  }
+  if(CLOUD.backgroundBoot && CLOUD.user && user.uid === CLOUD.user.uid){
+    CLOUD.enteredUid = user.uid;
+    CLOUD.user.name = user.displayName || CLOUD.user.name || '';
+    CLOUD.user.photo = user.photoURL || CLOUD.user.photo || '';
+    saveCloudSession();
+    cloudResume(user);
+    return;
+  }
+  if(CLOUD.backgroundBoot){
+    CLOUD.status = 'error';
+    CLOUD.error = 'The signed-in account changed. Sign out and sign in again to sync the right hisab.';
+    cloudStatusRefresh();
     return;
   }
   if(CLOUD.enteredUid === user.uid && (APP_STARTED || ONB.active)) return;
@@ -4901,11 +5010,94 @@ async function cloudEnter(user){
     CLOUD.entering = false;
   }
 }
+async function cloudResume(user){
+  if(!CLOUD.ready || !CLOUD.user || !user) return;
+  if(ONB.active) return; // the setup wizard uploads when it finishes
+  if(CLOUD.resuming) return;
+  if(CLOUD.resumedUid === user.uid && SYNC.unsubs.length){
+    cloudSetStatus(navigator.onLine ? 'online' : 'offline');
+    cloudPush();
+    return;
+  }
+  CLOUD.resuming = true;
+  CLOUD.stationId = user.uid;
+  cloudSetStatus('connecting');
+  try{
+    const sid = user.uid;
+    CLOUD.db.doc('users/' + sid).set({
+      email:CLOUD.user.email || '',
+      displayName:CLOUD.user.name || '',
+      photoURL:CLOUD.user.photo || '',
+      stationId:sid,
+      lastSeenAt:Date.now()
+    }, {merge:true}).catch(function(){});
+
+    const stationSnap = await CLOUD.db.doc('stations/' + sid).get();
+    CLOUD.hasStation = !!stationSnap.exists;
+    if(!stationSnap.exists){
+      if(DB.settings.setupComplete){
+        await cloudCreateStation();
+        CLOUD.resumedUid = sid;
+        CLOUD.resuming = false;
+        cloudStartSync();
+      } else {
+        CLOUD.resuming = false;
+        CLOUD.status = 'offline';
+        cloudStatusRefresh();
+      }
+      return;
+    }
+
+    const metaSnap = await CLOUD.db.doc('stations/' + sid + '/settings/main').get();
+    const remoteMeta = metaSnap.exists ? metaSnap.data() : null;
+    const remoteReady = !!(remoteMeta && remoteMeta.settings && remoteMeta.settings.setupComplete);
+    const remote = await cloudPullAll();
+    cloudFilterPendingDeletes(remote);
+
+    if(remoteReady){
+      const localReady = !!(DB.settings && DB.settings.setupComplete);
+      if(localReady) cloudMergeRemote(remote);
+      else cloudAdoptRemote(remote);
+      DB.meta.stationId = sid;
+      DB.settings.setupComplete = true;
+      DB.settings.setupDismissed = true;
+      cloudSeedLast(remote);
+      saveLocalOnly();
+      localKnownReset();
+      CLOUD.resumedUid = sid;
+      CLOUD.resuming = false;
+      cloudStartSync();
+    } else {
+      DB.meta.stationId = sid;
+      saveLocalOnly();
+      localKnownReset();
+      if(DB.settings.setupComplete){
+        SYNC.last = {};
+        CLOUD.resuming = false;
+        await cloudPush();
+        CLOUD.resumedUid = sid;
+        cloudStartSync();
+      } else {
+        CLOUD.resuming = false;
+        CLOUD.status = 'offline';
+        cloudStatusRefresh();
+      }
+    }
+  } catch(e){
+    CLOUD.resuming = false;
+    CLOUD.error = e && e.message || String(e);
+    cloudSetStatus('error');
+  } finally {
+    CLOUD.resuming = false;
+    if(APP_STARTED && UI.page === 'dashboard' && !document.body.classList.contains('modal-open')) render();
+    refreshUnsynced();
+  }
+}
 async function cloudCreateStation(){
   const uid = CLOUD.user.uid;
   const sid = uid;
   await CLOUD.db.doc('stations/' + sid).set({
-    name: DB.settings.pumpName || 'Fuel Station',
+    name: displayName(),
     ownerUid: uid,
     ownerEmail: CLOUD.user.email || '',
     schemaVersion: 1,
@@ -5006,12 +5198,15 @@ function cloudSeedLast(remote){
 }
 /* ---------------- push local changes ---------------- */
 function queueCloudSync(){
+  refreshUnsynced();
+  if(CLOUD.resuming) return;
   if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user || !APP_STARTED) return;
   if(CLOUD.status === 'online') cloudSetStatus(navigator.onLine ? 'pending' : 'offline');
   clearTimeout(SYNC.timer);
   SYNC.timer = setTimeout(function(){ cloudPush(); }, 650);
 }
 async function cloudPush(){
+  if(CLOUD.resuming) return;
   if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user) return;
   if(SYNC.pushing){ SYNC.again = true; return; }
   SYNC.pushing = true;
@@ -5102,6 +5297,7 @@ async function cloudCommit(ops){
 function cloudStartSync(){
   cloudStopSync();
   if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user) return;
+  CLOUD.resumedUid = CLOUD.stationId;
   cloudAttachListeners();
   cloudSetStatus(navigator.onLine ? 'syncing' : 'offline');
   cloudPush();
@@ -5192,7 +5388,7 @@ function cloudApplySettings(data){
   DB.settings = Object.assign({}, DB.settings, data.settings, {theme:DB.settings.theme});
   DB.rates = Object.assign({}, DB.rates, data.rates || {});
   SYNC.last['settings/main'] = cloudSettingsSig(DB.settings, DB.rates);
-  document.title = DB.settings.pumpName + ' — Hisab';
+  document.title = appTitle();
   cloudAfterRemoteChange();
 }
 function cloudApplyTombstone(t){
@@ -5212,6 +5408,7 @@ function cloudApplyTombstone(t){
 function cloudAfterRemoteChange(){
   saveLocalOnly();
   localKnownReset();
+  refreshUnsynced();
   if(!APP_STARTED) return;
   clearTimeout(SYNC.renderTimer);
   SYNC.renderTimer = setTimeout(function(){
@@ -5228,7 +5425,7 @@ function startCloudApp(){
   ONB.busy = false;
   gateBusy(false);
   document.body.classList.remove('gate-mode');
-  document.title = DB.settings.pumpName + ' — Hisab';
+  document.title = appTitle();
   cloudStatusRefresh();
   render();
 }
@@ -5244,7 +5441,7 @@ function googleIcon(){
 }
 function showAuthScreen(msg){
   gateShell(
-    '<div class="gate-eyebrow">Ghufran Khalil · Hisab</div>' +
+    '<div class="gate-eyebrow">' + esc(displayName()) + ' · Hisab</div>' +
     '<h2 class="gate-h2">Sign in with Google</h2>' +
     '<p class="gate-lede">Use the Google account that owns this pump. Each Google account gets its own private hisab — nothing is shared between accounts.</p>' +
     '<div id="gate-error" class="form-error' + (msg ? ' show' : '') + '">' + esc(msg || '') + '</div>' +
@@ -5393,6 +5590,10 @@ async function cloudSignIn(){
   showAuthScreen();
 }
 async function cloudSyncNow(){
+  if(CLOUD.resuming){
+    toast('Still connecting to the cloud — try again in a moment', 'err');
+    return;
+  }
   if(!CLOUD.ready || !CLOUD.stationId){
     toast(CLOUD.user ? 'Cloud is unavailable — changes are queued' : 'Sign in to sync', 'err');
     return;
@@ -5410,12 +5611,15 @@ function confirmCloudSignOut(){
     body:'<div class="alert blue">' + icon('info', 16) + '<div>You can sign in again at any time with the same email. Nothing is deleted.</div></div>',
     onSubmit:function(){
       setTimeout(function(){
+        CLOUD.backgroundBoot = false;
+        CLOUD.resuming = false;
         if(!CLOUD.auth || !CLOUD.auth.currentUser){
           cloudStopSync();
           CLOUD.user = null;
           CLOUD.stationId = null;
           CLOUD.enteredUid = null;
           CLOUD.status = 'local';
+          CLOUD.resumedUid = null;
           APP_STARTED = false;
           clearCloudSession();
           localClearToGate(true);
@@ -5461,6 +5665,8 @@ function cloudSettingsCardHTML(){
         ? '<div class="cloud-acct">' + avatar + '<div class="ca-main"><div class="ca-email">' + esc(accountName) + '</div><div class="ca-sub">' + esc(CLOUD.user.email || '') + '</div></div><span class="ca-state ' + state.cls + '">' + esc(cloudStatusLabel()) + '</span></div>'
         : '<div class="alert blue">' + icon('lock', 16) + '<div>Sign in with Google to start cloud sync.</div></div>') +
       '<div class="stat-line"><span class="k">Last cloud save</span><span class="v num">' + (CLOUD.lastSync ? new Date(CLOUD.lastSync).toLocaleString('en-GB') : '—') + '</span></div>' +
+      '<div class="stat-line"><span class="k">Unsynced records</span><span class="v num" id="unsynced-count">' + esc(unsyncedDisplay()) + '</span></div>' +
+      '<div class="form-note" style="margin-top:-2px">This counts changes on this phone that Firestore has not confirmed yet, including offline deletes.</div>' +
       (CLOUD.error ? '<div class="alert red">' + icon('alert', 16) + '<div>' + esc(CLOUD.error) + '</div></div>' : '') +
       '<div class="form-note">Entries are saved on the phone first, then uploaded. If the signal drops, queued changes upload automatically when the connection returns.</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
@@ -5553,7 +5759,7 @@ function renderOnboarding(){
 function onbHeadHTML(){
   return '<header class="onb-top">' +
     '<div class="brand-logo">' + icon('pump', 21) + '</div>' +
-    '<div><div class="onb-title">' + esc(ONB.draft.pumpName || 'Set up your pump') + '</div><div class="onb-sub">First-time setup</div></div>' +
+    '<div><div class="onb-title">' + esc(ONB.draft.pumpName || APP_NAME) + '</div><div class="onb-sub">First-time setup</div></div>' +
     '<div class="onb-cloud">' + icon('cloud', 14) + ' ' + esc(CLOUD.user ? (CLOUD.user.email || 'Signed in') : 'This device') + '</div>' +
     (DB.settings.setupComplete ? '<button class="icon-btn bare" type="button" data-act="onb-cancel" aria-label="Close setup">' + icon('x', 19) + '</button>' : '') +
   '</header>';
@@ -5590,7 +5796,7 @@ function onbStepHTML(step){
   const d = ONB.draft;
   if(step === 0){
     return '<div class="onb-grid">' +
-      '<div class="field full"><label for="onb-pump">Pump name</label><input id="onb-pump" value="' + attr(d.pumpName) + '" placeholder="e.g. Ghufran Khalil Petroleum Pump" autocomplete="organization" required></div>' +
+      '<div class="field full"><label for="onb-pump">Business / pump name</label><input id="onb-pump" value="' + attr(d.pumpName) + '" placeholder="e.g. Your Petroleum Pump" autocomplete="organization" required></div>' +
       '<div class="field"><label for="onb-phone">Phone</label><input id="onb-phone" type="tel" value="' + attr(d.phone) + '" placeholder="03xx-xxxxxxx"></div>' +
       '<div class="field"><label for="onb-cash">Opening cash in hand (Rs)</label><input id="onb-cash" type="number" step="0.01" min="0" inputmode="decimal" value="' + num(d.openingCash) + '"></div>' +
       '<div class="field full"><label for="onb-address">Address</label><input id="onb-address" value="' + attr(d.address) + '" placeholder="Village / city / landmark"></div>' +
@@ -5690,7 +5896,7 @@ function onbReviewHTML(){
   const staffCount = d.staff.filter(function(s){ return s.name; }).length;
   const bankCount = d.banks.filter(function(b){ return b.name; }).length;
   return '<div class="onb-review">' +
-    card('Pump', d.pumpName || '—', (d.address ? esc(d.address) + '<br>' : '') + (d.phone ? esc(d.phone) : '')) +
+    card('Business', d.pumpName || '-', (d.address ? esc(d.address) + '<br>' : '') + (d.phone ? esc(d.phone) : '')) +
     card('Partners', d.partners.length + (d.partners.length === 1 ? ' partner' : ' partners'), partnerNames) +
     card('Storage', d.tanks.length + (d.tanks.length === 1 ? ' tank' : ' tanks'), tankLines) +
     card('Dispensers', d.nozzles.length + (d.nozzles.length === 1 ? ' nozzle' : ' nozzles'), nozzleLines) +
@@ -5761,7 +5967,7 @@ function onbCapture(){
 function onbValidate(step){
   const d = ONB.draft;
   if(step === 0){
-    if(!d.pumpName) return 'Enter the pump name.';
+    if(!d.pumpName) return 'Enter your business / pump name.';
     if(num(d.openingCash) < 0) return 'Opening cash cannot be negative.';
   }
   if(step === 1){
@@ -5919,7 +6125,7 @@ function onbStart(){
   ONB.active = false;
   ONB.busy = false;
   startCloudApp();
-  toast('Welcome to ' + DB.settings.pumpName, 'ok');
+  toast('Welcome to ' + displayName(), 'ok');
 }
 function onbCancel(){
   if(ONB.busy) return;
@@ -5971,6 +6177,12 @@ window.addEventListener('online', function(){
         cloudBindAuth();
       } catch(e){ return; }
     }
+    if(CLOUD.resuming) return;
+    if(CLOUD.backgroundBoot && !CLOUD.resumedUid){
+      const current = CLOUD.auth && CLOUD.auth.currentUser;
+      if(current) cloudResume(current);
+      return;
+    }
     if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user) return;
     cloudSetStatus('syncing');
     cloudPush();
@@ -5981,13 +6193,13 @@ window.addEventListener('offline', function(){
   cloudSetStatus('offline');
 });
 window.addEventListener('pagehide', function(){
-  if(CLOUD.ready && CLOUD.stationId && CLOUD.user){
+  if(CLOUD.ready && CLOUD.stationId && CLOUD.user && !CLOUD.resuming){
     clearTimeout(SYNC.timer);
     cloudPush();
   }
 });
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'hidden' && CLOUD.ready && CLOUD.stationId && CLOUD.user){
+  if(document.visibilityState === 'hidden' && CLOUD.ready && CLOUD.stationId && CLOUD.user && !CLOUD.resuming){
     clearTimeout(SYNC.timer);
     cloudPush();
   }
@@ -6022,14 +6234,36 @@ window.__androidBack = function(){
 };
 (function boot(){
   applyTheme();
-  document.title = DB.settings.pumpName + ' — Hisab';
+  document.title = appTitle();
   window.addEventListener('keydown', function(e){
     if(e.key === 'Escape'){ closeModal(); closeSheet(); }
   });
   $('#sheet-back').addEventListener('click', closeSheet);
   try { localStorage.removeItem('gkpp_firebase_cfg_v1'); } catch(e){}
   localKnownInit();
-  cloudBoot();
+
+  const session = cloudSession();
+  const hasLocalUser = !!(session && session.uid && localStorage.getItem(localDbKey(session.uid)));
+  if(hasLocalUser){
+    // The account and its local hisab are already known. Open instantly and
+    // let Firebase reconnect in the background, online or offline.
+    localSwitchUser(session);
+    CLOUD.user = {
+      uid:session.uid,
+      email:session.email || '',
+      name:session.name || '',
+      photo:session.photo || ''
+    };
+    CLOUD.stationId = session.uid;
+    CLOUD.status = navigator.onLine ? 'connecting' : 'offline';
+    CLOUD.backgroundBoot = true;
+    CLOUD.hasStation = !!DB.settings.setupComplete;
+    if(DB.settings.setupComplete) startCloudApp();
+    else startOnboarding();
+    cloudBoot(true);
+  } else {
+    cloudBoot(false);
+  }
 })();
 
 </script>
