@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "920612716021",
+    "project_id": "petrolpump-8888d",
+    "storage_bucket": "petrolpump-8888d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:920612716021:android:7afa2a88698c7d5809b4bc",
+        "android_client_info": {
+          "package_name": "com.ghufrankhalil.petroleumpump"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "920612716021-3ajbers573jam4an27gb6m28f7h50rn7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ghufrankhalil.petroleumpump",
+            "certificate_hash": "3f103c216b54f2ede255c141a64ff75e9f528369"
+          }
+        },
+        {
+          "client_id": "920612716021-k7gro2gvl0l4in9o6ej7acadntg0eh41.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBRxN0eHdHWiqHKD2qQhFwWm3MwwoDkyuM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "920612716021-k7gro2gvl0l4in9o6ej7acadntg0eh41.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
