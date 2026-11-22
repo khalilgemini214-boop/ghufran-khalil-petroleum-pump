@@ -3043,6 +3043,7 @@ function loanTabHTML(){
     const repaid = loanRepaidOf(l);
     const out = loanOutstandingOf(l);
     const pctRepaidOne = principal ? clamp(pct(repaid,principal),0,100) : 0;
+    const over = Math.max(0, round2(repaid - principal));
     const reps = allReps.filter(r=>r.loanId===l.id);
     return '<div class="card" style="margin-top:14px">'+
       '<div class="card-head"><div><h3>'+esc(loanLabel(l))+'</h3><p>'+(l.linkCapital ? 'Linked to the borrower\'s capital share' : 'Fixed amount')+' · since '+fmtDate(l.date)+'</p></div>'+
@@ -3055,6 +3056,7 @@ function loanTabHTML(){
         '<div class="tiny muted">'+pctRepaidOne.toFixed(1)+'% recovered</div>'+
         (l.linkCapital ? '<div class="form-note" style="margin-top:10px"><b>Automatic principal.</b> This loan equals '+esc(partnerName(l.borrowerId))+'\'s share of the net investment. Adding or withdrawing shared capital changes it automatically; repayments do not.</div>'
           : (l.note ? '<div class="form-note" style="margin-top:10px">'+esc(l.note)+'</div>' : ''))+
+        (over>0 ? '<div class="alert amber" style="margin-top:10px">'+icon('alert',15)+'<div>Repayments are '+money0(over)+' more than the current principal. Delete or adjust a repayment if needed.</div></div>' : '')+
         '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">'+
           '<button class="btn sm" data-act="repay-loan" data-loan="'+l.id+'" '+(out<=0?'disabled':'')+'>'+icon('check',14)+' Record repayment</button>'+
           '<button class="btn sm red no-print" data-act="del-loan" data-id="'+l.id+'">'+icon('trash',14)+' Delete loan</button>'+
