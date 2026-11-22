@@ -1,0 +1,26 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Google profile for this account (informational only).
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // A station is keyed by the owner's UID, so no lookup reads are needed.
+    // All hisab data lives in subcollections of that station.
+    match /stations/{sid} {
+      allow read, write: if signedIn() && sid == request.auth.uid;
+
+      match /{collection}/{docId} {
+        allow read, write: if signedIn() && sid == request.auth.uid;
+      }
+    }
+  }
+}

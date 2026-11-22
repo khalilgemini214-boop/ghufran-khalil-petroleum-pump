@@ -127,6 +127,9 @@ input,select,textarea{font-family:inherit}
 .btn.green{background:linear-gradient(180deg,#22b56c,#0f9d58);color:#fff;box-shadow:0 6px 16px rgba(15,157,88,.24)}
 .btn.red{background:var(--red-soft);color:var(--red);box-shadow:none;border:1px solid color-mix(in srgb,var(--red) 22%,transparent)}
 .btn.block{width:100%}
+.btn.google{background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow)}
+.btn.google:hover{border-color:#c9d2de;filter:none}
+.gate-google{margin-top:18px;padding:12px 16px;font-size:14px;gap:10px}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .ico{width:18px;height:18px}
 .link-btn{border:0;background:none;color:var(--blue);font-weight:700;font-size:12.5px;cursor:pointer;padding:4px 0}
@@ -393,6 +396,156 @@ html[data-theme="dark"] #toast-root{bottom:96px}
 body.ledger-open .view{padding-bottom:120px}
 .modal-foot .btn.red{flex:0 0 auto}
 
+/* ============ CLOUD GATE (LOGIN / SETUP) ============ */
+body.gate-mode{background:var(--bg)}
+body.gate-mode .bottomnav,body.gate-mode #sheet,body.gate-mode #sheet-back,body.gate-mode .fab{display:none!important}
+.gate{min-height:100vh;display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr)}
+.gate-brand{
+  position:relative;overflow:hidden;color:#fff;padding:34px 38px;display:flex;flex-direction:column;gap:26px;
+  background:
+    radial-gradient(620px 320px at 92% -10%,rgba(245,165,36,.30),transparent 62%),
+    radial-gradient(520px 360px at -10% 110%,rgba(11,107,203,.28),transparent 60%),
+    linear-gradient(145deg,#13243c 0%,#091322 78%);
+}
+.gate-brand:after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;background-image:repeating-linear-gradient(115deg,rgba(255,255,255,.025) 0 1px,transparent 1px 9px)}
+.gate-brand-top{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+.gate-logo{width:50px;height:50px;border-radius:15px;flex:0 0 auto;background:linear-gradient(145deg,#ffcf6b,#f5a524);color:#22160a;display:grid;place-items:center;box-shadow:0 10px 26px rgba(245,165,36,.3),inset 0 1px 0 rgba(255,255,255,.5)}
+.gate-name{font-size:15px;font-weight:800;letter-spacing:-.01em;line-height:1.25}
+.gate-sub{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#8ea3bd;font-weight:700;margin-top:3px}
+.gate-hero{margin-top:auto;position:relative;z-index:1}
+.gate-eyebrow{font-size:10.5px;letter-spacing:.17em;text-transform:uppercase;color:#8fa5c0;font-weight:800}
+.gate-hero h1{font-size:38px;line-height:1.08;letter-spacing:-.045em;font-weight:850;margin-top:9px;max-width:11ch}
+.gate-hero p{font-size:13px;line-height:1.55;color:#a4b6cc;margin-top:12px;max-width:42ch}
+.gate-points{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:10px;position:relative;z-index:1}
+.gate-points li{display:flex;align-items:flex-start;gap:10px;font-size:12.5px;color:#c7d4e4;font-weight:600}
+.gate-points .gi{width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);display:grid;place-items:center;flex:0 0 auto;color:#ffcf6b}
+.gate-brand-foot{margin-top:auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.09);font-size:10.5px;color:#7288a2;position:relative;z-index:1}
+.gate-panel{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:34px 24px;gap:14px}
+.gate-card{width:min(440px,100%);background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:26px 24px}
+.gate-card.wide{width:min(640px,100%)}
+.gate-h2{font-size:24px;font-weight:850;letter-spacing:-.035em;margin-top:5px}
+.gate-lede{font-size:12.5px;color:var(--muted);margin-top:6px;line-height:1.5}
+.gate-links{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-top:14px}
+.gate-alt{font-size:12px;color:var(--muted)}
+.gate-alt button{border:0;background:none;padding:0;color:var(--blue);font-weight:750;cursor:pointer;font-size:12px}
+.gate-note{font-size:11px;color:var(--muted);line-height:1.5;margin-top:12px;display:flex;gap:7px;align-items:flex-start}
+.gate-note svg{flex:0 0 auto;margin-top:1px;color:var(--green)}
+.gate-small{font-size:10.5px;color:var(--muted2);text-align:center;max-width:440px;line-height:1.5}
+.gate-loading{display:flex;flex-direction:column;align-items:center;gap:14px;padding:26px 10px;text-align:center}
+.gate-loading .gt{font-size:14px;font-weight:750}
+.gate-loading .gs{font-size:11.5px;color:var(--muted);margin-top:3px}
+.spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--amber);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gate-busy{position:fixed;inset:0;z-index:180;background:rgba(8,16,29,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px}
+.gate-busy .box{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px 24px;display:flex;align-items:center;gap:14px;box-shadow:var(--shadow-lg);max-width:340px}
+.gate-busy .box .spinner{width:26px;height:26px;border-width:2.5px}
+.gate-busy .bt{font-size:13px;font-weight:750}
+.gate-busy .bs{font-size:11px;color:var(--muted);margin-top:2px}
+/* ============ ONBOARDING WIZARD ============ */
+.onb{min-height:100vh;display:flex;flex-direction:column;background:
+  radial-gradient(900px 380px at 100% 0,rgba(245,165,36,.09),transparent 60%),var(--bg)}
+.onb-top{display:flex;align-items:center;gap:12px;padding:16px 22px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);position:sticky;top:0;z-index:20}
+.onb-top .brand-logo{width:38px;height:38px;border-radius:11px}
+.onb-top .onb-title{font-size:13.5px;font-weight:800;letter-spacing:-.01em;line-height:1.25}
+.onb-top .onb-sub{font-size:10.5px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:700;margin-top:2px}
+.onb-top .onb-cloud{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line);background:var(--card);padding:6px 10px;border-radius:999px;white-space:nowrap}
+.onb-wrap{width:min(1080px,100%);margin:0 auto;display:grid;grid-template-columns:228px minmax(0,1fr);gap:24px;padding:24px 22px 46px;flex:1;align-items:start}
+.onb-steps{display:flex;flex-direction:column;gap:2px;position:sticky;top:88px}
+.onb-step{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;color:var(--muted);font-size:12.5px;font-weight:700;min-width:0}
+.onb-step .n{width:24px;height:24px;border-radius:8px;display:grid;place-items:center;font-size:10.5px;font-weight:850;background:var(--bg2);border:1px solid var(--line);flex:0 0 auto;color:var(--muted)}
+.onb-step.on{background:var(--card);color:var(--ink);border:1px solid var(--line);box-shadow:var(--shadow)}
+.onb-step.on .n{background:linear-gradient(180deg,#ffb939,#f5a524);border-color:transparent;color:#241705}
+.onb-step.done .n{background:var(--green-soft);border-color:transparent;color:var(--green)}
+.onb-card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);overflow:hidden;min-width:0}
+.onb-head{padding:20px 22px 15px;border-bottom:1px solid var(--line)}
+.onb-head .eyebrow{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.onb-head h2{font-size:21px;font-weight:850;letter-spacing:-.03em;margin-top:4px}
+.onb-head p{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.5}
+.onb-body{padding:20px 22px;display:flex;flex-direction:column;gap:15px}
+.onb-foot{display:flex;align-items:center;gap:9px;padding:14px 22px;border-top:1px solid var(--line);background:var(--card);flex-wrap:wrap}
+.onb-foot .onb-next{margin-left:auto}
+.onb-foot .btn.red{margin-right:auto}
+.onb-error{display:none;background:var(--red-soft);color:#b32016;border:1px solid color-mix(in srgb,var(--red) 24%,transparent);padding:9px 11px;border-radius:9px;font-size:12px;font-weight:650}
+.onb-error.show{display:block}
+html[data-theme="dark"] .onb-error{color:#ff9a92}
+.onb-row{border:1px solid var(--line);border-radius:13px;padding:12px;display:grid;gap:10px;background:var(--bg);position:relative}
+.onb-row .onb-row-top{display:flex;align-items:center;gap:8px}
+.onb-row .onb-row-title{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.onb-row .onb-del{margin-left:auto;width:28px;height:28px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--red);display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
+.onb-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.onb-grid .full{grid-column:1/-1}
+.onb-add{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--line);background:transparent;color:var(--blue);font-weight:750;font-size:12px;padding:8px 11px;border-radius:9px;cursor:pointer;font-family:inherit}
+.onb-add:hover{background:var(--blue-soft);border-color:transparent}
+.onb-tip{font-size:11.5px;color:var(--muted);background:var(--bg2);border:1px dashed var(--line);border-radius:10px;padding:9px 11px;line-height:1.5}
+.onb-share-total{font-size:11.5px;color:var(--muted);font-weight:700}
+.onb-share-total b{color:var(--ink)}
+.onb-rate{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.onb-review{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.onb-rev{border:1px solid var(--line);border-radius:13px;padding:13px 14px;background:var(--bg);min-width:0}
+.onb-rev .rl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.onb-rev .rv{font-size:15px;font-weight:850;margin-top:2px;letter-spacing:-.02em;overflow-wrap:anywhere}
+.onb-rev .rs{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.45}
+.onb-welcome{padding:34px 26px 28px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px}
+.onb-welcome .onb-badge{width:74px;height:74px;border-radius:24px;background:linear-gradient(145deg,#ffcf6b,#f5a524);color:#22160a;display:grid;place-items:center;box-shadow:0 16px 38px rgba(245,165,36,.34),inset 0 1px 0 rgba(255,255,255,.55);margin-bottom:8px}
+.onb-welcome h1{font-size:31px;letter-spacing:-.045em;font-weight:850;line-height:1.1;overflow-wrap:anywhere}
+.onb-welcome p{font-size:13px;color:var(--muted);max-width:46ch;line-height:1.55;margin-top:5px}
+.onb-welcome .onb-welcome-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;width:100%;margin:20px 0 8px}
+.onb-welcome .onb-welcome-sum .ws{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:11px 12px;text-align:left;min-width:0}
+.onb-welcome .onb-welcome-sum .wl{font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.onb-welcome .onb-welcome-sum .wv{font-size:15px;font-weight:850;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.onb-welcome .btn{width:min(320px,100%);margin-top:6px}
+.cloud-chip b{font-size:11.5px}
+.cloud-dot{width:8px;height:8px;border-radius:50%;background:var(--muted2);flex:0 0 auto}
+.cloud-chip.st-online .cloud-dot{background:var(--green)}
+.cloud-chip.st-syncing .cloud-dot,.cloud-chip.st-pending .cloud-dot{background:var(--amber)}
+.cloud-chip.st-error .cloud-dot{background:var(--red)}
+.cloud-chip.st-offline .cloud-dot{background:var(--muted2)}
+.cloud-acct{display:flex;align-items:center;gap:11px;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);min-width:0}
+.cloud-acct .ca-main{min-width:0;flex:1}
+.cloud-acct .ca-email{font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cloud-acct .ca-sub{font-size:10.5px;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cloud-acct .ca-state{font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:4px 8px;border-radius:999px;background:var(--bg2);color:var(--muted);white-space:nowrap;flex:0 0 auto}
+.cloud-acct .ca-state.ok{background:var(--green-soft);color:var(--green)}
+.cloud-acct .ca-state.warn{background:var(--amber-soft);color:#a86a00}
+.cloud-acct .ca-state.err{background:var(--red-soft);color:var(--red)}
+.cloud-avatar{width:38px;height:38px;border-radius:11px;object-fit:cover;flex:0 0 auto;border:1px solid var(--line);background:var(--bg2)}
+
+@media (max-width:980px){
+  .gate{grid-template-columns:1fr}
+  .gate-brand{padding:24px 20px 26px;gap:16px}
+  .gate-brand .gate-hero{margin-top:8px}
+  .gate-hero h1{font-size:29px;max-width:16ch}
+  .gate-hero p{display:none}
+  .gate-points{display:none}
+  .gate-brand-foot{margin-top:10px;padding-top:12px}
+  .gate-panel{padding:0 16px 34px;justify-content:flex-start}
+  .gate-card{margin-top:-12px;position:relative;z-index:2;border-radius:20px;padding:22px 18px;box-shadow:var(--shadow-lg)}
+  .onb-wrap{grid-template-columns:1fr;gap:14px;padding:16px 14px 40px}
+  .onb-steps{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:2px;scrollbar-width:none}
+  .onb-steps::-webkit-scrollbar{display:none}
+  .onb-step{flex:0 0 auto;padding:6px 9px;font-size:11px}
+  .onb-step .n{width:21px;height:21px;font-size:9.5px}
+  .onb-head{padding:17px 16px 13px}
+  .onb-head h2{font-size:19px}
+  .onb-body{padding:16px}
+  .onb-foot{padding:13px 16px calc(13px + env(safe-area-inset-bottom))}
+  .onb-grid{grid-template-columns:1fr}
+  .onb-rate,.onb-review{grid-template-columns:1fr}
+  .onb-welcome{padding:28px 18px 24px}
+  .onb-welcome h1{font-size:26px}
+  .onb-welcome .onb-welcome-sum{grid-template-columns:1fr 1fr}
+}
+@media (max-width:430px){
+  .gate-brand{padding:18px 16px 22px}
+  .gate-logo{width:42px;height:42px;border-radius:12px}
+  .gate-name{font-size:13.5px}
+  .gate-hero h1{font-size:25px}
+  .gate-h2{font-size:21px}
+  .onb-welcome .onb-welcome-sum{grid-template-columns:1fr}
+  .onb-foot .btn{flex:1}
+  .onb-foot .onb-next{flex:1.4}
+}
+
 /* ============ RESPONSIVE ============ */
 @media (max-width:1100px){
   .k4{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -515,7 +668,8 @@ body.ledger-open .view{padding-bottom:120px}
 /* ==========================================================================
    GHUFRAN KHALIL PETROLEUM PUMP — HISAB
    Single-file, offline-first fuel station accounts.
-   Data lives in localStorage; use Settings → Backup for a JSON copy.
+   Data lives in per-Google-account localStorage and, when signed in, syncs
+   to Firebase Authentication + Firestore. Use Settings → Backup for a copy.
    ========================================================================== */
 "use strict";
 
@@ -565,7 +719,10 @@ const ICONS = {
   chevronR:'<path d="m9 5 7 7-7 7"/>',
   arrowLeft:'<path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>',
   chevronD:'<path d="m6 9 6 6 6-6"/>',
-  refresh:'<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>'
+  refresh:'<path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/>',
+  cloud:'<path d="M7 18h10a4 4 0 0 0 .55-7.96A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18Z"/>',
+  logout:'<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
+  sparkle:'<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3"/>'
 };
 function icon(name, size){
   size = size || 20;
@@ -716,7 +873,14 @@ function moneyField(id, label, value, opts){
 }
 
 /* ---------------- DATA ---------------- */
-const DB_KEY = 'gkpp_data_v1';
+/* Local data is namespaced per Google account. Two emails on the same phone
+   can never read or overwrite each other's hisab. */
+const DB_KEY_BASE = 'gkpp_data_v1';
+const DB_USER_PREFIX = 'gkpp_user_';
+const LAST_UID_KEY = 'gkpp_last_uid_v1';
+const LEGACY_OWNER_KEY = 'gkpp_legacy_owner_v1';
+let DB_KEY = DB_KEY_BASE;
+let ACTIVE_UID = null;
 const THEME_KEY = 'gkpp_theme';
 
 function seedData(){
@@ -837,19 +1001,38 @@ try {
   }
 } catch(e){ DB = seedData(); }
 
-function save(){
+function saveLocalOnly(){
   invalidateCostCache();
   try { localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
   catch(e){ toast('Could not save data on this device', 'err'); }
+}
+function save(){
+  localTrackRemovals();
+  saveLocalOnly();
+  queueCloudSync();
 }
 function commit(opts){
   save();
   if(!opts || opts.render !== false) render();
 }
 function resetAll(){
+  const stationId = DB.meta && DB.meta.stationId;
+  const wasSetUp = !!(DB.settings && DB.settings.setupComplete);
   DB = seedData();
+  // Keep the cloud link so a reset does not create a second station or
+  // send the user back through the setup wizard.
+  if(stationId) DB.meta.stationId = stationId;
+  if(wasSetUp){ DB.settings.setupComplete = true; DB.settings.setupDismissed = true; }
   save();
   render();
+}
+function restoreDBFromBackup(data){
+  const stationId = DB.meta && DB.meta.stationId;
+  const wasSetUp = !!(DB.settings && DB.settings.setupComplete);
+  DB = migrate(data);
+  if(stationId) DB.meta.stationId = stationId;
+  if(wasSetUp){ DB.settings.setupComplete = true; DB.settings.setupDismissed = true; }
+  document.title = DB.settings.pumpName + ' — Hisab';
 }
 function partnerById(id){ return DB.partners.find(p=>p.id===id) || {name:'—', share:0, id:''}; }
 function productById(id){ return DB.products.find(p=>p.id===id) || {id:id, name:id, color:'#999'}; }
@@ -960,6 +1143,10 @@ function closeModal(){
   $('#modal-root').innerHTML = '';
   document.body.classList.remove('modal-open');
   modalState.onSubmit = null;
+  if(SYNC.renderPending && APP_STARTED){
+    SYNC.renderPending = false;
+    render();
+  }
 }
 function fail(msg){ throw new Error(msg); }
 
@@ -995,13 +1182,14 @@ function shellHTML(page){
         '<button class="nav-item" data-act="backup-now">'+icon('download',18)+'<span>Backup data</span></button>'+
         '<button class="nav-item" data-act="theme">'+icon(DB.settings.theme==='dark'?'sun':'moon',18)+'<span>'+(DB.settings.theme==='dark'?'Light mode':'Dark mode')+'</span></button>'+
       '</div>'+
-      '<div class="side-note">Hisab v1 · Saved on this device</div>'+
+      '<div class="side-note">Hisab v1 · '+esc(cloudStatusLabel())+'</div>'+
     '</aside>'+
     '<div class="main-wrap">'+
       '<header class="topbar">'+
         '<div class="mobile-brand">'+icon('pump',19)+'</div>'+
         '<div class="tb-left"><div class="tb-title">'+p.label+'</div><div class="tb-sub">'+new Date().toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+'</div></div>'+
         '<div class="tb-actions">'+
+          cloudChipHTML()+
           '<div class="cash-chip hide-xs" title="Cash in hand"><div class="dot"'+(cash<0?' style="background:var(--red-soft);color:var(--red)"':'')+'>'+icon('wallet',13)+'</div><span class="lbl">Cash</span><b class="num"'+(cash<0?' style="color:var(--red)"':'')+'>'+money0(cash)+'</b></div>'+
           '<button class="icon-btn" data-act="theme" aria-label="Toggle theme">'+icon(DB.settings.theme==='dark'?'sun':'moon',18)+'</button>'+
           '<button class="btn md topbar-add" data-act="quick-add">'+icon('plus',16)+'<span>New Entry</span></button>'+
@@ -3701,7 +3889,8 @@ function pageSettings(){
       '</div></div>'+
   '</div>'+
   meterResetCardHTML()+
-  '<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Data & backup</h3><p>Your data is stored only on this device</p></div></div>'+
+  cloudSettingsCardHTML()+
+  '<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Data & backup</h3><p>Keep a copy of your hisab outside the app</p></div></div>'+
     '<div class="card-body">'+
       '<div class="alert blue" style="margin-bottom:12px">'+icon('shield',16)+'<div>Take a backup after every busy day. Use <b>Backup text</b> and keep the text outside this app — WhatsApp, an email to yourself, or notes. It contains all sales, purchases, expenses, staff, partners, accounts and settings. The phone app cannot download a file, so copying the text is the safe method.</div></div>'+
       '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
@@ -4083,8 +4272,7 @@ function openRestoreText(){
       try { data = JSON.parse((fd.restoreJson||'').trim()); }
       catch(e){ fail('This is not valid backup text. Copy the complete text and try again.'); }
       if(!data || !data.settings || !Array.isArray(data.sales)) fail('This text is not a valid Ghufran Khalil backup.');
-      DB = migrate(data);
-      document.title = DB.settings.pumpName + ' — Hisab';
+      restoreDBFromBackup(data);
       save(); render();
       return {message:'Backup restored'};
     }
@@ -4145,8 +4333,7 @@ function pickRestoreFile(){
           '<div class="stat-line"><span class="k">Sales entries</span><span class="v">'+((data.sales&&data.sales.length)||0)+'</span></div>'+
           '<div class="stat-line"><span class="k">Expenses</span><span class="v">'+((data.expenses&&data.expenses.length)||0)+'</span></div>',
         onSubmit:function(){
-          DB = migrate(data);
-          document.title = DB.settings.pumpName + ' — Hisab';
+          restoreDBFromBackup(data);
           save(); closeModal(); render();
           toast('Backup restored','ok');
         }
@@ -4223,10 +4410,1567 @@ function setMonth(el){
   render();
 }
 
+/* ==========================================================================
+   CLOUD SYNC — FIREBASE AUTH + FIRESTORE
+   Local storage stays the source of truth on the phone. Every save() is
+   diffed against the last synced copy and the changes are written to
+   Firestore (add / edit / delete). Remote changes stream back live.
+   ========================================================================== */
+
+/* This app is permanently connected to one Firebase project.
+   There is no in-app setup screen and the configuration cannot be changed
+   from the app by any user. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBxgkFNQNiSL1Bw8aKI5uT7XHKgBWNpUMc",
+  authDomain: "petrolpump-8888d.firebaseapp.com",
+  projectId: "petrolpump-8888d",
+  storageBucket: "petrolpump-8888d.firebasestorage.app",
+  messagingSenderId: "920612716021",
+  appId: "1:920612716021:web:5e05e378f83c67e109b4bc",
+  measurementId: "G-LCE9CGN2YH"
+};
+const LIVE_APP_URL = 'https://khalilgemini214-boop.github.io/ghufran-khalil-petroleum-pump/';
+const CLOUD_SESSION_KEY = 'gkpp_cloud_session_v1';
+const CLOUD_INDEX_KEY = 'gkpp_cloud_known_docs_v1';
+const CLOUD_PENDING_DEL_KEY = 'gkpp_cloud_pending_deletes_v1';
+const CLOUD_SDK_VERSION = '10.12.5';
+const CLOUD_COLLECTIONS = ['partners','products','tanks','nozzles','sales','purchases','suppliers','supplierPayments','expenses','staff','salaryPayments','investments','loans','loanRepayments','drawings','customers','customerPayments','dips','meterResets','accounts','accountTx','banks','bankTx','cashEntries','rateHistory'];
+
+const CLOUD = {
+  ready:false, configured:false, initializing:false, authBound:false, entering:false,
+  user:null, stationId:null, hasStation:false, status:'local', error:'', lastSync:0, enteredUid:null
+};
+const SYNC = {
+  last:{}, unsubs:[], timer:null, renderTimer:null,
+  pushing:false, again:false, renderPending:false
+};
+let APP_STARTED = false;
+let ONB = { active:false, step:0, draft:null, busy:false, error:'' };
+
+/* Stable JSON so field order from Firestore never looks like a change. */
+function stableJSON(v){
+  if(v === undefined) return 'null';
+  if(v === null || typeof v !== 'object') return JSON.stringify(v);
+  if(Array.isArray(v)) return '[' + v.map(stableJSON).join(',') + ']';
+  return '{' + Object.keys(v).sort().map(function(k){
+    return JSON.stringify(k) + ':' + stableJSON(v[k]);
+  }).join(',') + '}';
+}
+function cloudSettingsSig(settings, rates){
+  return stableJSON({ settings: settings || {}, rates: rates || {} });
+}
+
+/* Offline deletion tracking. Deletions made without internet are remembered
+   and sent as tombstones the next time the cloud is reachable, even after the
+   app is closed and reopened. */
+let LOCAL_KNOWN = null;
+function allDocKeys(){
+  const keys = [];
+  CLOUD_COLLECTIONS.forEach(function(coll){
+    (DB[coll] || []).forEach(function(doc){
+      if(doc && doc.id) keys.push(coll + '/' + doc.id);
+    });
+  });
+  return keys;
+}
+function knownDocsKey(){
+  const sid = DB.meta && DB.meta.stationId || 'base';
+  return CLOUD_INDEX_KEY + '_' + sid;
+}
+function persistKnownDocs(){
+  try {
+    localStorage.setItem(knownDocsKey(), JSON.stringify({
+      stationId: DB.meta && DB.meta.stationId || '',
+      keys: Array.from(LOCAL_KNOWN || [])
+    }));
+  } catch(e){}
+}
+function localKnownReset(){
+  LOCAL_KNOWN = new Set(allDocKeys());
+  persistKnownDocs();
+}
+function localKnownInit(){
+  try {
+    const raw = JSON.parse(localStorage.getItem(knownDocsKey()) || 'null');
+    const sid = DB.meta && DB.meta.stationId || '';
+    if(raw && raw.stationId && sid && raw.stationId === sid && Array.isArray(raw.keys)){
+      LOCAL_KNOWN = new Set(raw.keys);
+      localTrackRemovals();
+      return;
+    }
+  } catch(e){}
+  localKnownReset();
+}
+function pendingKey(sid){
+  return CLOUD_PENDING_DEL_KEY + '_' + sid;
+}
+function pendingStore(sid){
+  try { return JSON.parse(localStorage.getItem(pendingKey(sid)) || 'null'); }
+  catch(e){ return null; }
+}
+function pendingDeletesFor(sid){
+  const s = pendingStore(sid);
+  if(!s || !sid || s.stationId !== sid || !Array.isArray(s.keys)) return [];
+  return s.keys;
+}
+function addPendingDeletes(keys){
+  const sid = DB.meta && DB.meta.stationId;
+  if(!sid || !keys.length) return;
+  const cur = pendingDeletesFor(sid);
+  try {
+    localStorage.setItem(pendingKey(sid), JSON.stringify({stationId:sid, keys:Array.from(new Set(cur.concat(keys)))}));
+  } catch(e){}
+}
+function removePendingDeletes(sid, keys){
+  const cur = pendingDeletesFor(sid);
+  if(!cur.length) return;
+  const done = new Set(keys);
+  const left = cur.filter(function(k){ return !done.has(k); });
+  try {
+    if(left.length) localStorage.setItem(pendingKey(sid), JSON.stringify({stationId:sid, keys:left}));
+    else localStorage.removeItem(pendingKey(sid));
+  } catch(e){}
+}
+function localTrackRemovals(){
+  if(!LOCAL_KNOWN) return;
+  const current = new Set(allDocKeys());
+  const removed = [];
+  LOCAL_KNOWN.forEach(function(k){ if(!current.has(k)) removed.push(k); });
+  if(removed.length) addPendingDeletes(removed);
+  LOCAL_KNOWN = current;
+  persistKnownDocs();
+}
+
+function cloudCfg(){
+  return FIREBASE_CONFIG;
+}
+function cloudSession(){
+  try { return JSON.parse(localStorage.getItem(CLOUD_SESSION_KEY) || 'null'); }
+  catch(e){ return null; }
+}
+function saveCloudSession(){
+  if(!CLOUD.user) return;
+  try {
+    localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify({
+      uid:CLOUD.user.uid, email:CLOUD.user.email,
+      name:CLOUD.user.name || '', photo:CLOUD.user.photo || ''
+    }));
+  } catch(e){}
+}
+function clearCloudSession(){
+  try { localStorage.removeItem(CLOUD_SESSION_KEY); } catch(e){}
+}
+function localDbKey(uid){
+  return DB_USER_PREFIX + uid;
+}
+/* Load the hisab that belongs to this Google account. The old single-key
+   data is claimed by the first account that signs in, never shared. */
+function localSwitchUser(user){
+  const uid = user && user.uid;
+  if(!uid) return false;
+  if(ACTIVE_UID === uid) return false;
+  if(ACTIVE_UID) saveLocalOnly();
+  let raw = null;
+  try { raw = localStorage.getItem(localDbKey(uid)); } catch(e){}
+  if(!raw){
+    let legacy = null, owner = null;
+    try {
+      legacy = localStorage.getItem(DB_KEY_BASE);
+      owner = localStorage.getItem(LEGACY_OWNER_KEY);
+    } catch(e){}
+    if(legacy && !owner){
+      try {
+        localStorage.setItem(localDbKey(uid), legacy);
+        localStorage.setItem(LEGACY_OWNER_KEY, uid);
+        localStorage.removeItem(DB_KEY_BASE);
+      } catch(e){}
+      raw = legacy;
+    }
+  }
+  let data;
+  try { data = raw ? migrate(JSON.parse(raw)) : seedData(); }
+  catch(e){ data = seedData(); }
+  // The UID is the station ID — one account can never touch another account.
+  data.meta.stationId = uid;
+  if(!raw){
+    data.settings.setupComplete = false;
+    data.settings.setupDismissed = false;
+  }
+  DB = data;
+  DB_KEY = localDbKey(uid);
+  ACTIVE_UID = uid;
+  applyTheme();
+  SYNC.last = {};
+  CLOUD.hasStation = false;
+  CLOUD.lastSync = 0;
+  CLOUD.error = '';
+  ONB = { active:false, step:0, draft:null, busy:false, error:'' };
+  UI.page = 'dashboard';
+  UI.accId = null;
+  UI.navStack = [];
+  UI.moreOpen = false;
+  UI.accTxSearch = '';
+  try { localStorage.setItem(LAST_UID_KEY, uid); } catch(e){}
+  saveLocalOnly();
+  localKnownInit();
+  return true;
+}
+function localClearToGate(clearLast){
+  if(ACTIVE_UID) saveLocalOnly();
+  ACTIVE_UID = null;
+  DB_KEY = DB_KEY_BASE;
+  DB = seedData();
+  applyTheme();
+  SYNC.last = {};
+  CLOUD.hasStation = false;
+  CLOUD.lastSync = 0;
+  CLOUD.error = '';
+  ONB = { active:false, step:0, draft:null, busy:false, error:'' };
+  UI.page = 'dashboard';
+  UI.accId = null;
+  UI.navStack = [];
+  UI.moreOpen = false;
+  if(clearLast){ try { localStorage.removeItem(LAST_UID_KEY); } catch(e){} }
+  localKnownInit();
+}
+
+/* ---------------- status chip ---------------- */
+function cloudStatusLabel(){
+  if(!CLOUD.user && !['syncing','online','offline','error'].includes(CLOUD.status)) return 'Signed out';
+  switch(CLOUD.status){
+    case 'syncing': return 'Syncing…';
+    case 'online': return 'Synced';
+    case 'pending': return 'Pending';
+    case 'offline': return 'Offline';
+    case 'error': return 'Sync error';
+    case 'connecting': return 'Connecting…';
+    default: return CLOUD.user ? 'Cloud on' : 'Signed out';
+  }
+}
+function cloudStatusClass(){
+  switch(CLOUD.status){
+    case 'online': return 'st-online';
+    case 'syncing': return 'st-syncing';
+    case 'pending': return 'st-pending';
+    case 'offline': return 'st-offline';
+    case 'error': return 'st-error';
+    default: return '';
+  }
+}
+function cloudChipInner(){
+  return '<span class="cloud-dot"></span><span class="lbl">' + esc(cloudStatusLabel()) + '</span>';
+}
+function cloudChipHTML(){
+  return '<div class="cash-chip cloud-chip hide-xs ' + cloudStatusClass() + '" id="cloud-chip" title="Cloud sync status">' + cloudChipInner() + '</div>';
+}
+function cloudStatusRefresh(){
+  const el = $('#cloud-chip');
+  if(el){
+    el.className = 'cash-chip cloud-chip hide-xs ' + cloudStatusClass();
+    el.innerHTML = cloudChipInner();
+  }
+}
+function cloudSetStatus(status){
+  CLOUD.status = status;
+  cloudStatusRefresh();
+}
+
+/* ---------------- Firebase SDK ---------------- */
+const cloudScriptPromises = {};
+function loadCloudScript(src){
+  if(cloudScriptPromises[src]) return cloudScriptPromises[src];
+  cloudScriptPromises[src] = new Promise(function(resolve, reject){
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = function(){ resolve(); };
+    s.onerror = function(){
+      delete cloudScriptPromises[src];
+      reject(new Error('Could not download Firebase. Check the internet connection.'));
+    };
+    document.head.appendChild(s);
+  });
+  return cloudScriptPromises[src];
+}
+async function loadCloudSdk(){
+  if(window.firebase && window.firebase.initializeApp) return;
+  const base = 'https://www.gstatic.com/firebasejs/' + CLOUD_SDK_VERSION + '/';
+  await loadCloudScript(base + 'firebase-app-compat.js');
+  await loadCloudScript(base + 'firebase-auth-compat.js');
+  await loadCloudScript(base + 'firebase-firestore-compat.js');
+  if(!window.firebase) throw new Error('Firebase did not load.');
+}
+async function cloudInit(cfg){
+  if(CLOUD.ready) return;
+  if(CLOUD.initializing) return;
+  CLOUD.initializing = true;
+  try{
+    await loadCloudSdk();
+    if(!firebase.apps.length) firebase.initializeApp(cfg);
+    CLOUD.auth = firebase.auth();
+    CLOUD.db = firebase.firestore();
+    try { await CLOUD.db.enablePersistence({synchronizeTabs:true}); } catch(e){}
+    try { CLOUD.db.settings({ignoreUndefinedProperties:true}); } catch(e){}
+    try { await CLOUD.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(e){}
+    CLOUD.configured = true;
+    CLOUD.ready = true;
+  } finally {
+    CLOUD.initializing = false;
+  }
+}
+function cloudBindAuth(){
+  if(CLOUD.authBound || !CLOUD.auth) return;
+  CLOUD.authBound = true;
+  CLOUD.auth.onAuthStateChanged(function(user){ cloudAuthChanged(user); });
+}
+
+/* ---------------- gate UI ---------------- */
+function gateBusy(show, title, sub){
+  let el = $('#gate-busy');
+  if(!show){ if(el) el.remove(); return; }
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'gate-busy';
+    document.body.appendChild(el);
+  }
+  el.className = 'gate-busy';
+  el.innerHTML = '<div class="box"><div class="spinner"></div><div><div class="bt">' + esc(title || 'Working…') + '</div>' + (sub ? '<div class="bs">' + esc(sub) + '</div>' : '') + '</div></div>';
+}
+function gateBrandHTML(){
+  return '<section class="gate-brand">' +
+    '<div class="gate-brand-top"><div class="gate-logo">' + icon('pump', 26) + '</div><div><div class="gate-name">' + esc(DB.settings.pumpName || 'Ghufran Khalil Petroleum Pump') + '</div><div class="gate-sub">Fuel Station · Hisab</div></div></div>' +
+    '<div class="gate-hero"><div class="gate-eyebrow">One hisab · every device</div><h1>Your pump accounts, always in sync.</h1><p>Record a sale, purchase, payment or expense once. It is saved to your account and appears on every phone signed in to this pump.</p></div>' +
+    '<ul class="gate-points">' +
+      '<li><span class="gi">' + icon('cloud', 15) + '</span><span>Live sync for every add, edit and delete</span></li>' +
+      '<li><span class="gi">' + icon('shield', 15) + '</span><span>Private to your login — nobody else can open it</span></li>' +
+      '<li><span class="gi">' + icon('refresh', 15) + '</span><span>Works offline and uploads when the signal returns</span></li>' +
+    '</ul>' +
+    '<div class="gate-brand-foot">Ghufran Khalil Petroleum Pump · Hisab v1</div>' +
+  '</section>';
+}
+function gateShell(inner, wide){
+  document.body.classList.add('gate-mode');
+  gateBusy(false);
+  const app = $('#app');
+  if(app){
+    app.innerHTML = '<div class="gate">' + gateBrandHTML() +
+      '<section class="gate-panel"><div class="gate-card' + (wide ? ' wide' : '') + '">' + inner + '</div>' +
+      '<div class="gate-small">Cloud sync keeps every phone on the same hisab. Entries made offline upload automatically when the internet returns.</div></section></div>';
+  }
+  const bn = $('#bottomnav');
+  if(bn) bn.innerHTML = '';
+  window.scrollTo({top:0, behavior:'instant'});
+}
+function gateLoading(title, sub){
+  gateShell('<div class="gate-loading"><div class="spinner"></div><div><div class="gt">' + esc(title) + '</div>' + (sub ? '<div class="gs">' + esc(sub) + '</div>' : '') + '</div></div>');
+}
+function gateError(msg){
+  const el = $('#gate-error');
+  if(!el) return;
+  el.textContent = msg || '';
+  el.classList.toggle('show', !!msg);
+}
+
+/* ---------------- boot / auth flow ---------------- */
+async function cloudBoot(){
+  CLOUD.configured = true;
+  gateLoading('Connecting to your hisab…', 'First load may take a few seconds');
+  try{
+    await cloudInit(cloudCfg());
+  } catch(e){
+    const session = cloudSession();
+    if(session && session.uid){
+      localSwitchUser(session);
+      CLOUD.user = {uid:session.uid, email:session.email || '', name:session.name || '', photo:session.photo || ''};
+      CLOUD.stationId = session.uid;
+      CLOUD.status = 'offline';
+      startCloudApp();
+      toast('Cloud is unreachable — working on this device', 'err');
+    } else {
+      showAuthScreen(e.message || 'Could not reach the cloud.');
+    }
+    return;
+  }
+  cloudBindAuth();
+  cloudCheckRedirect();
+}
+async function cloudCheckRedirect(){
+  if(!CLOUD.auth) return;
+  try{
+    await CLOUD.auth.getRedirectResult();
+    // onAuthStateChanged opens the account when a redirect completes.
+  }catch(e){
+    const code = (e && e.code) || '';
+    if(code && code !== 'auth/no-auth-event'){
+      showAuthScreen(cloudAuthError(e));
+    }
+  }
+}
+function cloudAuthChanged(user){
+  if(!user){
+    const wasSignedIn = !!(CLOUD.user || CLOUD.enteredUid || APP_STARTED);
+    cloudStopSync();
+    CLOUD.user = null;
+    CLOUD.stationId = null;
+    CLOUD.enteredUid = null;
+    CLOUD.status = 'local';
+    clearCloudSession();
+    APP_STARTED = false;
+    localClearToGate(wasSignedIn);
+    showAuthScreen();
+    return;
+  }
+  if(CLOUD.enteredUid === user.uid && (APP_STARTED || ONB.active)) return;
+  // Load this Google account's own local hisab BEFORE touching the cloud.
+  localSwitchUser(user);
+  CLOUD.enteredUid = user.uid;
+  CLOUD.user = {
+    uid:user.uid,
+    email:user.email || '',
+    name:user.displayName || '',
+    photo:user.photoURL || ''
+  };
+  saveCloudSession();
+  cloudEnter(user);
+}
+async function cloudEnter(user){
+  if(CLOUD.entering) return;
+  CLOUD.entering = true;
+  gateBusy(true, 'Opening your hisab…');
+  try{
+    const uid = user.uid;
+    // One station per Google UID. This is the isolation boundary.
+    const sid = uid;
+    CLOUD.stationId = sid;
+    CLOUD.db.doc('users/' + uid).set({
+      email:CLOUD.user.email || '',
+      displayName:CLOUD.user.name || '',
+      photoURL:CLOUD.user.photo || '',
+      stationId:uid,
+      lastSeenAt:Date.now()
+    }, {merge:true}).catch(function(){});
+
+    const stationSnap = await CLOUD.db.doc('stations/' + sid).get();
+    CLOUD.hasStation = !!stationSnap.exists;
+    if(!stationSnap.exists){
+      gateBusy(false);
+      if(DB.settings.setupComplete){
+        gateBusy(true, 'Creating your cloud hisab…', 'Uploading this account’s data');
+        await cloudCreateStation();
+        cloudStartSync();
+        gateBusy(false);
+        startCloudApp();
+        toast('Cloud hisab created for this account', 'ok');
+      } else {
+        startOnboarding();
+      }
+      return;
+    }
+
+    const metaSnap = await CLOUD.db.doc('stations/' + sid + '/settings/main').get();
+    const remoteMeta = metaSnap.exists ? metaSnap.data() : null;
+    const remoteReady = !!(remoteMeta && remoteMeta.settings && remoteMeta.settings.setupComplete);
+
+    const remote = await cloudPullAll();
+    cloudFilterPendingDeletes(remote);
+    if(remoteReady){
+      const localReady = !!(DB.settings && DB.settings.setupComplete);
+      if(localReady) cloudMergeRemote(remote);
+      else cloudAdoptRemote(remote);
+      DB.meta.stationId = sid;
+      DB.settings.setupComplete = true;
+      DB.settings.setupDismissed = true;
+      cloudSeedLast(remote);
+      saveLocalOnly();
+      localKnownReset();
+      cloudStartSync();
+      gateBusy(false);
+      startCloudApp();
+    } else {
+      DB.meta.stationId = sid;
+      saveLocalOnly();
+      localKnownReset();
+      gateBusy(false);
+      startOnboarding();
+    }
+  } catch(e){
+    gateBusy(false);
+    CLOUD.error = e && e.message || String(e);
+    showAuthScreen('Could not open your hisab. ' + cloudFriendlyError(e));
+  } finally {
+    CLOUD.entering = false;
+  }
+}
+async function cloudCreateStation(){
+  const uid = CLOUD.user.uid;
+  const sid = uid;
+  await CLOUD.db.doc('stations/' + sid).set({
+    name: DB.settings.pumpName || 'Fuel Station',
+    ownerUid: uid,
+    ownerEmail: CLOUD.user.email || '',
+    schemaVersion: 1,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  });
+  await CLOUD.db.doc('users/' + uid).set({
+    email:CLOUD.user.email || '',
+    displayName:CLOUD.user.name || '',
+    photoURL:CLOUD.user.photo || '',
+    stationId:sid,
+    updatedAt:Date.now()
+  }, {merge:true});
+  CLOUD.stationId = sid;
+  CLOUD.hasStation = true;
+  DB.meta.stationId = sid;
+  DB.meta.schema = 1;
+  saveLocalOnly();
+  localKnownReset();
+  SYNC.last = {};
+  await cloudPush();
+}
+
+/* ---------------- first download / merge ---------------- */
+async function cloudPullAll(){
+  const sid = CLOUD.stationId;
+  const out = {settings:null, docs:{}, tombstones:[]};
+  const ss = await CLOUD.db.doc('stations/' + sid + '/settings/main').get();
+  if(ss.exists) out.settings = ss.data();
+  for(let i=0; i<CLOUD_COLLECTIONS.length; i++){
+    const coll = CLOUD_COLLECTIONS[i];
+    const snap = await CLOUD.db.collection('stations/' + sid + '/' + coll).get();
+    out.docs[coll] = snap.docs.map(function(d){
+      const data = d.data() || {};
+      if(!data.id) data.id = d.id;
+      return data;
+    });
+  }
+  try{
+    const ts = await CLOUD.db.collection('stations/' + sid + '/tombstones').get();
+    out.tombstones = ts.docs.map(function(d){ return d.data(); });
+  } catch(e){}
+  return out;
+}
+function cloudFilterPendingDeletes(remote){
+  const pending = pendingDeletesFor(CLOUD.stationId);
+  if(!pending.length) return;
+  const ps = new Set(pending);
+  CLOUD_COLLECTIONS.forEach(function(c){
+    remote.docs[c] = (remote.docs[c] || []).filter(function(d){ return !ps.has(c + '/' + d.id); });
+  });
+}
+function cloudAdoptRemote(remote){
+  CLOUD_COLLECTIONS.forEach(function(c){ DB[c] = (remote.docs[c] || []).slice(); });
+  if(remote.settings){
+    DB.settings = Object.assign({}, DB.settings, remote.settings.settings || {}, {theme:DB.settings.theme});
+    DB.rates = Object.assign({}, DB.rates, remote.settings.rates || {});
+  }
+  DB.settings.setupComplete = true;
+  DB.settings.setupDismissed = true;
+}
+function cloudMergeRemote(remote){
+  CLOUD_COLLECTIONS.forEach(function(c){
+    const map = new Map();
+    (DB[c] || []).forEach(function(d){ map.set(d.id, d); });
+    (remote.docs[c] || []).forEach(function(d){
+      const local = map.get(d.id);
+      if(!local) map.set(d.id, d);
+      else if(num(d.updatedAt) > num(local.updatedAt)) map.set(d.id, d);
+    });
+    DB[c] = Array.from(map.values());
+  });
+  cloudApplyRemoteTombstones(remote.tombstones || []);
+  if(remote.settings){
+    DB.settings = Object.assign({}, DB.settings, remote.settings.settings || {}, {theme:DB.settings.theme});
+    DB.rates = Object.assign({}, DB.rates, remote.settings.rates || {});
+  }
+}
+function cloudApplyRemoteTombstones(list){
+  (list || []).forEach(function(t){
+    if(!t || !t.collection || !t.docId) return;
+    const arr = DB[t.collection];
+    if(!Array.isArray(arr)) return;
+    const local = arr.find(function(d){ return d.id === t.docId; });
+    if(!local) return;
+    if(num(local.updatedAt) && num(local.updatedAt) > num(t.deletedAt)) return;
+    DB[t.collection] = arr.filter(function(d){ return d.id !== t.docId; });
+  });
+}
+function cloudSeedLast(remote){
+  SYNC.last = {};
+  CLOUD_COLLECTIONS.forEach(function(c){
+    (remote.docs[c] || []).forEach(function(d){ SYNC.last[c + '/' + d.id] = stableJSON(d); });
+  });
+  if(remote.settings && remote.settings.settings){
+    SYNC.last['settings/main'] = cloudSettingsSig(remote.settings.settings, remote.settings.rates || {});
+  }
+}
+/* ---------------- push local changes ---------------- */
+function queueCloudSync(){
+  if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user || !APP_STARTED) return;
+  if(CLOUD.status === 'online') cloudSetStatus(navigator.onLine ? 'pending' : 'offline');
+  clearTimeout(SYNC.timer);
+  SYNC.timer = setTimeout(function(){ cloudPush(); }, 650);
+}
+async function cloudPush(){
+  if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user) return;
+  if(SYNC.pushing){ SYNC.again = true; return; }
+  SYNC.pushing = true;
+  cloudSetStatus('syncing');
+  const sid = CLOUD.stationId;
+  const now = Date.now();
+  const userUid = CLOUD.user.uid;
+  const ops = [];
+  const lastSet = {};
+  const lastDel = [];
+  const pendingAtStart = pendingDeletesFor(sid);
+  try{
+    const sig = cloudSettingsSig(DB.settings, DB.rates);
+    if(SYNC.last['settings/main'] !== sig){
+      ops.push({type:'set', path:'stations/' + sid + '/settings/main', data:{settings:DB.settings, rates:DB.rates, updatedAt:now, updatedBy:userUid}});
+      lastSet['settings/main'] = sig;
+    }
+
+    CLOUD_COLLECTIONS.forEach(function(coll){
+      if(!Array.isArray(DB[coll])) DB[coll] = [];
+      const seen = {};
+      DB[coll].forEach(function(doc){
+        if(!doc || typeof doc !== 'object') return;
+        if(!doc.id) doc.id = uid(coll);
+        doc.id = String(doc.id);
+        const id = doc.id;
+        seen[id] = true;
+        const key = coll + '/' + id;
+        if(SYNC.last[key] === stableJSON(doc)) return;
+        const payload = Object.assign({}, doc, {updatedAt:now, updatedBy:userUid});
+        doc.updatedAt = now;
+        ops.push({type:'set', path:'stations/' + sid + '/' + coll + '/' + id, data:payload});
+        lastSet[key] = stableJSON(doc);
+      });
+      Object.keys(SYNC.last).forEach(function(key){
+        if(key.indexOf(coll + '/') !== 0) return;
+        const id = key.slice(coll.length + 1);
+        if(seen[id]) return;
+        lastDel.push(key);
+        ops.push({type:'del', path:'stations/' + sid + '/' + coll + '/' + id});
+        ops.push({type:'set', path:'stations/' + sid + '/tombstones/' + coll + '__' + id, data:{collection:coll, docId:id, deletedAt:now, deletedBy:userUid}});
+      });
+    });
+
+    // Deletions remembered from an offline session.
+    pendingAtStart.forEach(function(key){
+      const slash = key.indexOf('/');
+      if(slash < 1) return;
+      const coll = key.slice(0, slash);
+      const id = key.slice(slash + 1);
+      if(CLOUD_COLLECTIONS.indexOf(coll) < 0) return;
+      if(lastDel.indexOf(key) >= 0) return;
+      lastDel.push(key);
+      ops.push({type:'del', path:'stations/' + sid + '/' + coll + '/' + id});
+      ops.push({type:'set', path:'stations/' + sid + '/tombstones/' + coll + '__' + id, data:{collection:coll, docId:id, deletedAt:now, deletedBy:userUid}});
+    });
+
+    await cloudCommit(ops);
+    Object.keys(lastSet).forEach(function(k){ SYNC.last[k] = lastSet[k]; });
+    lastDel.forEach(function(k){ delete SYNC.last[k]; });
+    if(pendingAtStart.length) removePendingDeletes(sid, pendingAtStart);
+    if(ops.length) saveLocalOnly();
+    CLOUD.lastSync = Date.now();
+    CLOUD.error = '';
+    cloudSetStatus(navigator.onLine ? 'online' : 'offline');
+  } catch(e){
+    CLOUD.error = e && e.message || String(e);
+    cloudSetStatus('error');
+  } finally {
+    SYNC.pushing = false;
+    if(SYNC.again){ SYNC.again = false; setTimeout(function(){ cloudPush(); }, 80); }
+  }
+}
+async function cloudCommit(ops){
+  if(!ops.length) return;
+  for(let i=0; i<ops.length; i+=400){
+    const batch = CLOUD.db.batch();
+    ops.slice(i, i+400).forEach(function(op){
+      const ref = CLOUD.db.doc(op.path);
+      if(op.type === 'set') batch.set(ref, op.data);
+      else batch.delete(ref);
+    });
+    await batch.commit();
+  }
+}
+
+/* ---------------- live pull ---------------- */
+function cloudStartSync(){
+  cloudStopSync();
+  if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user) return;
+  cloudAttachListeners();
+  cloudSetStatus(navigator.onLine ? 'syncing' : 'offline');
+  cloudPush();
+}
+function cloudStopSync(){
+  SYNC.unsubs.forEach(function(u){ try{ u(); } catch(e){} });
+  SYNC.unsubs = [];
+  clearTimeout(SYNC.timer);
+  clearTimeout(SYNC.renderTimer);
+  SYNC.timer = null;
+  SYNC.renderTimer = null;
+  SYNC.pushing = false;
+  SYNC.again = false;
+}
+function cloudOnSyncError(err){
+  CLOUD.error = err && err.message || 'Sync error';
+  cloudSetStatus('error');
+}
+function cloudAttachListeners(){
+  const sid = CLOUD.stationId;
+  const settingsRef = CLOUD.db.doc('stations/' + sid + '/settings/main');
+  SYNC.unsubs.push(settingsRef.onSnapshot(function(snap){
+    if(!snap.exists || snap.metadata.hasPendingWrites) return;
+    cloudApplySettings(snap.data());
+  }, cloudOnSyncError));
+
+  CLOUD_COLLECTIONS.forEach(function(coll){
+    const ref = CLOUD.db.collection('stations/' + sid + '/' + coll);
+    SYNC.unsubs.push(ref.onSnapshot(function(snap){
+      if(snap.metadata.hasPendingWrites) return;
+      cloudApplyCollection(coll, snap);
+    }, cloudOnSyncError));
+  });
+
+  SYNC.unsubs.push(CLOUD.db.collection('stations/' + sid + '/tombstones').onSnapshot(function(snap){
+    if(snap.metadata.hasPendingWrites) return;
+    snap.docs.forEach(function(d){ cloudApplyTombstone(d.data()); });
+  }, cloudOnSyncError));
+}
+function cloudApplyCollection(coll, snap){
+  if(!Array.isArray(DB[coll])) DB[coll] = [];
+  let changed = false;
+  snap.docChanges().forEach(function(ch){
+    const id = ch.doc.id;
+    const key = coll + '/' + id;
+    if(ch.type === 'removed'){
+      const idx = DB[coll].findIndex(function(d){ return d.id === id; });
+      if(idx < 0){ delete SYNC.last[key]; return; }
+      const dirty = SYNC.last[key] !== undefined && stableJSON(DB[coll][idx]) !== SYNC.last[key];
+      if(dirty) return;
+      DB[coll].splice(idx, 1);
+      delete SYNC.last[key];
+      changed = true;
+      return;
+    }
+    const data = Object.assign({}, ch.doc.data() || {});
+    if(!data.id) data.id = id;
+    const local = DB[coll].find(function(d){ return d.id === id; });
+    if(!local){
+      DB[coll].push(data);
+      SYNC.last[key] = stableJSON(data);
+      changed = true;
+      return;
+    }
+    const localJson = stableJSON(local);
+    const dirty = SYNC.last[key] !== undefined && localJson !== SYNC.last[key];
+    const remoteJson = stableJSON(data);
+    if(localJson !== remoteJson){
+      if(!dirty){
+        const idx = DB[coll].indexOf(local);
+        DB[coll][idx] = data;
+        SYNC.last[key] = stableJSON(data);
+        changed = true;
+      }
+    } else {
+      SYNC.last[key] = localJson;
+    }
+  });
+  if(changed) cloudAfterRemoteChange();
+}
+function cloudApplySettings(data){
+  if(!data || !data.settings) return;
+  const remoteSig = cloudSettingsSig(data.settings, data.rates || {});
+  if(SYNC.last['settings/main'] === remoteSig) return;
+  const localSig = cloudSettingsSig(DB.settings, DB.rates);
+  const dirty = SYNC.last['settings/main'] !== undefined && localSig !== SYNC.last['settings/main'];
+  if(dirty) return;
+  DB.settings = Object.assign({}, DB.settings, data.settings, {theme:DB.settings.theme});
+  DB.rates = Object.assign({}, DB.rates, data.rates || {});
+  SYNC.last['settings/main'] = cloudSettingsSig(DB.settings, DB.rates);
+  document.title = DB.settings.pumpName + ' — Hisab';
+  cloudAfterRemoteChange();
+}
+function cloudApplyTombstone(t){
+  if(!t || !t.collection || !t.docId) return;
+  const coll = t.collection;
+  if(!Array.isArray(DB[coll])) return;
+  const key = coll + '/' + t.docId;
+  const local = DB[coll].find(function(d){ return d.id === t.docId; });
+  if(!local){ delete SYNC.last[key]; return; }
+  const localJson = stableJSON(local);
+  const dirty = SYNC.last[key] !== undefined && localJson !== SYNC.last[key];
+  if(dirty) return;
+  DB[coll] = DB[coll].filter(function(d){ return d.id !== t.docId; });
+  delete SYNC.last[key];
+  cloudAfterRemoteChange();
+}
+function cloudAfterRemoteChange(){
+  saveLocalOnly();
+  localKnownReset();
+  if(!APP_STARTED) return;
+  clearTimeout(SYNC.renderTimer);
+  SYNC.renderTimer = setTimeout(function(){
+    if(!APP_STARTED) return;
+    if(document.body.classList.contains('modal-open')){ SYNC.renderPending = true; return; }
+    render();
+  }, 300);
+}
+
+/* ---------------- app start ---------------- */
+function startCloudApp(){
+  APP_STARTED = true;
+  ONB.active = false;
+  ONB.busy = false;
+  gateBusy(false);
+  document.body.classList.remove('gate-mode');
+  document.title = DB.settings.pumpName + ' — Hisab';
+  cloudStatusRefresh();
+  render();
+}
+
+/* ---------------- Google sign-in ---------------- */
+function googleIcon(){
+  return '<svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">' +
+    '<path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.52h3.24c1.9-1.75 2.98-4.33 2.98-7.37Z"/>' +
+    '<path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.4l-3.24-2.52c-.9.6-2.04.96-3.38.96-2.6 0-4.8-1.76-5.59-4.12H3.06v2.6A10 10 0 0 0 12 22Z"/>' +
+    '<path fill="#FBBC05" d="M6.41 13.92A6 6 0 0 1 6.1 12c0-.67.11-1.32.31-1.92v-2.6H3.06A10 10 0 0 0 2 12c0 1.61.38 3.14 1.06 4.52l3.35-2.6Z"/>' +
+    '<path fill="#EA4335" d="M12 5.96c1.47 0 2.79.5 3.83 1.5l2.87-2.87A9.62 9.62 0 0 0 12 2a10 10 0 0 0-8.94 5.48l3.35 2.6C7.2 7.72 9.4 5.96 12 5.96Z"/>' +
+  '</svg>';
+}
+function showAuthScreen(msg){
+  gateShell(
+    '<div class="gate-eyebrow">Ghufran Khalil · Hisab</div>' +
+    '<h2 class="gate-h2">Sign in with Google</h2>' +
+    '<p class="gate-lede">Use the Google account that owns this pump. Each Google account gets its own private hisab — nothing is shared between accounts.</p>' +
+    '<div id="gate-error" class="form-error' + (msg ? ' show' : '') + '">' + esc(msg || '') + '</div>' +
+    (location.protocol === 'file:' ? '<div class="alert amber" style="margin-top:14px">' + icon('info', 16) + '<div><b>Local file preview.</b> Google sign-in only works on the deployed website or a local HTTP server. Open <a href="' + attr(LIVE_APP_URL) + '" target="_blank" rel="noopener" style="font-weight:800;text-decoration:underline">the live app</a> to sign in.</div></div>' : '') +
+    '<button class="btn google block gate-google" type="button" data-act="auth-google">' + googleIcon() + ' Continue with Google</button>' +
+    '<div class="gate-links" style="justify-content:center"><span class="gate-alt">One account · one hisab · synced on every phone</span></div>' +
+    '<div class="gate-note">' + icon('shield', 14) + '<span>Your Google name and email are only used to sign in. Hisab data stays in your own private station.</span></div>'
+  );
+}
+async function cloudGoogleSignIn(){
+  if(location.protocol === 'file:'){
+    gateError('Google sign-in cannot run from a local file. Open the live app: ' + LIVE_APP_URL);
+    return;
+  }
+  if(!CLOUD.ready || !CLOUD.auth){
+    gateBusy(true, 'Connecting to Firebase…');
+    try{
+      await cloudInit(cloudCfg());
+      cloudBindAuth();
+    } catch(e){
+      gateBusy(false);
+      gateError(e.message || 'Could not connect to Firebase.');
+      return;
+    }
+  }
+  gateError('');
+  gateBusy(true, 'Opening Google…', 'Choose the account for this pump');
+  const provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  const native = (function(){
+    try { return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()); }
+    catch(e){ return false; }
+  })();
+  try{
+    await cloudWithTimeout(CLOUD.auth.signInWithPopup(provider), 180000, 'Google sign-in timed out. Please try again.');
+    // onAuthStateChanged opens the account.
+  }catch(err){
+    const code = (err && err.code) || '';
+    const msg = String((err && err.message) || '');
+    if(code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request'){
+      gateBusy(false);
+      if(native){
+        gateError('If the Google window did not open, this app build needs native Google Sign-In. You can use the live web app in Chrome.');
+      }
+      return;
+    }
+    if(code === 'auth/popup-blocked'){
+      try{
+        await CLOUD.auth.signInWithRedirect(provider);
+        return;
+      } catch(e2){
+        gateBusy(false);
+        gateError(cloudAuthError(e2));
+        return;
+      }
+    }
+    gateBusy(false);
+    gateError(cloudAuthError(err));
+    if(native && (msg.indexOf('disallowed_useragent') >= 0 || code === 'auth/internal-error')){
+      gateError('Google blocks sign-in inside the app WebView. Open the web app in Chrome, or use the native Google sign-in build.');
+    }
+  }
+}
+function cloudFriendlyError(e){
+  const msg = (e && (e.code || e.message)) || '';
+  if(msg.indexOf('permission-denied') >= 0 || msg.indexOf('insufficient permissions') >= 0) return 'Firestore denied access. Check that the security rules are published.';
+  if(msg.indexOf('unavailable') >= 0 || msg.indexOf('offline') >= 0) return 'The cloud is unreachable right now. Your entries are safe on this device; try again when the internet returns.';
+  if(msg.indexOf('not-found') >= 0) return 'The cloud hisab could not be found.';
+  if(msg.indexOf('network') >= 0) return 'Network problem. Check your connection and try again.';
+  return e && e.message ? e.message : 'Something went wrong.';
+}
+function cloudAuthError(err){
+  const code = (err && err.code) || '';
+  const map = {
+    'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
+    'auth/cancelled-popup-request': 'Google sign-in was cancelled.',
+    'auth/popup-blocked': 'The Google window was blocked. Allow pop-ups for this site and try again.',
+    'auth/operation-not-supported-in-this-environment': 'Google sign-in needs the live website or a local HTTP server — it cannot run from a file:// preview.',
+    'auth/unauthorized-domain': 'This site (' + (location.hostname || 'this domain') + ') is not authorized in Firebase Authentication. Add it to Authentication → Settings → Authorized domains.',
+    'auth/operation-not-allowed': 'Google sign-in is not enabled in Firebase Authentication.',
+    'auth/account-exists-with-different-credential': 'This email is already linked to a different sign-in method. Use the Google account that owns this pump.',
+    'auth/network-request-failed': 'No internet connection. Check your signal and try again.',
+    'auth/configuration-not-found': 'Firebase Authentication is not set up for this project yet.',
+    'auth/invalid-api-key': 'The app’s Firebase configuration is invalid. Contact the app administrator.',
+    'auth/too-many-requests': 'Too many attempts. Wait a minute and try again.'
+  };
+  if(map[code]) return map[code];
+  if(code.indexOf('api-key-not-valid') >= 0) return 'The app’s Firebase configuration is invalid. Contact the app administrator.';
+  if(code.indexOf('auth/') === 0) return 'Sign-in failed (' + code.replace('auth/', '') + '). Check the Firebase Authentication settings.';
+  return cloudFriendlyError(err);
+}
+function cloudWithTimeout(promise, ms, message){
+  return Promise.race([
+    promise,
+    new Promise(function(_, reject){ setTimeout(function(){ reject(new Error(message)); }, ms); })
+  ]);
+}
+
+/* ---------------- cloud actions from Settings ---------------- */
+async function cloudSignIn(){
+  if(!CLOUD.ready){
+    gateBusy(true, 'Connecting to Firebase…');
+    try{
+      await cloudInit(cloudCfg());
+      cloudBindAuth();
+      gateBusy(false);
+    } catch(e){
+      gateBusy(false);
+      toast(e.message || 'Could not connect', 'err');
+      return;
+    }
+  }
+  showAuthScreen();
+}
+async function cloudSyncNow(){
+  if(!CLOUD.ready || !CLOUD.stationId){
+    toast(CLOUD.user ? 'Cloud is unavailable — changes are queued' : 'Sign in to sync', 'err');
+    return;
+  }
+  toast('Syncing with the cloud…');
+  await cloudPush();
+  if(CLOUD.status === 'error') toast(CLOUD.error || 'Sync failed', 'err');
+  else toast('Cloud sync complete', 'ok');
+}
+function confirmCloudSignOut(){
+  openModal({
+    title:'Sign out?',
+    subtitle:'Your hisab stays saved on this phone and in the cloud.',
+    submitLabel:'Sign out',
+    body:'<div class="alert blue">' + icon('info', 16) + '<div>You can sign in again at any time with the same email. Nothing is deleted.</div></div>',
+    onSubmit:function(){
+      setTimeout(function(){
+        if(!CLOUD.auth || !CLOUD.auth.currentUser){
+          cloudStopSync();
+          CLOUD.user = null;
+          CLOUD.stationId = null;
+          CLOUD.enteredUid = null;
+          CLOUD.status = 'local';
+          APP_STARTED = false;
+          clearCloudSession();
+          localClearToGate(true);
+          showAuthScreen();
+          return;
+        }
+        try { CLOUD.auth.signOut(); } catch(e){}
+      }, 30);
+      return {message:'Signed out'};
+    }
+  });
+}
+function confirmRunWizard(){
+  openModal({
+    title:'Run the setup again?',
+    subtitle:'Update pump details, partners, tanks and dispensers.',
+    submitLabel:'Open setup',
+    body:'<div class="alert amber">' + icon('alert', 16) + '<div>This edits your pump profile. Past sales, purchases and payments are kept. Renaming or removing a partner, tank or nozzle can affect how old entries appear in reports, so edit carefully.</div></div>',
+    onSubmit:function(){
+      setTimeout(startOnboarding, 50);
+    }
+  });
+}
+function cloudStateBadge(){
+  if(CLOUD.status === 'error') return {html:'<span class="badge red">Sync error</span>', cls:'err'};
+  if(CLOUD.status === 'online') return {html:'<span class="badge green">Synced</span>', cls:'ok'};
+  if(CLOUD.status === 'offline') return {html:'<span class="badge gray">Offline</span>', cls:'warn'};
+  if(CLOUD.user) return {html:'<span class="badge amber">Syncing</span>', cls:'warn'};
+  return {html:'<span class="badge gray">Signed out</span>', cls:''};
+}
+function cloudSettingsCardHTML(){
+  const signed = !!CLOUD.user;
+  const state = cloudStateBadge();
+  const accountName = signed ? (CLOUD.user.name || CLOUD.user.email || 'Google account') : '';
+  const avatar = signed
+    ? (CLOUD.user.photo
+        ? '<img class="cloud-avatar" src="' + attr(CLOUD.user.photo) + '" alt="" referrerpolicy="no-referrer">'
+        : '<div class="partner-avatar a" style="width:38px;height:38px;border-radius:11px">' + esc(initials(accountName)) + '</div>')
+    : '';
+  return '<div class="card" style="margin-top:14px"><div class="card-head"><div><h3>Cloud sync</h3><p>Every add, edit and delete is mirrored to Firestore</p></div>' + state.html + '</div>' +
+    '<div class="card-body" style="display:flex;flex-direction:column;gap:12px">' +
+      (signed
+        ? '<div class="cloud-acct">' + avatar + '<div class="ca-main"><div class="ca-email">' + esc(accountName) + '</div><div class="ca-sub">' + esc(CLOUD.user.email || '') + '</div></div><span class="ca-state ' + state.cls + '">' + esc(cloudStatusLabel()) + '</span></div>'
+        : '<div class="alert blue">' + icon('lock', 16) + '<div>Sign in with Google to start cloud sync.</div></div>') +
+      '<div class="stat-line"><span class="k">Last cloud save</span><span class="v num">' + (CLOUD.lastSync ? new Date(CLOUD.lastSync).toLocaleString('en-GB') : '—') + '</span></div>' +
+      (CLOUD.error ? '<div class="alert red">' + icon('alert', 16) + '<div>' + esc(CLOUD.error) + '</div></div>' : '') +
+      '<div class="form-note">Entries are saved on the phone first, then uploaded. If the signal drops, queued changes upload automatically when the connection returns.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        (signed
+          ? '<button class="btn" data-act="cloud-sync-now">' + icon('refresh', 15) + ' Sync now</button><button class="btn ghost" data-act="cloud-signout">' + icon('logout', 15) + ' Sign out</button>'
+          : '<button class="btn" data-act="cloud-signin">' + icon('cloud', 15) + ' Sign in with Google</button>') +
+        '<button class="btn ghost" data-act="cloud-run-wizard">' + icon('grid', 15) + ' Setup wizard</button>' +
+      '</div>' +
+    '</div></div>';
+}
+
+/* ---------------- ONBOARDING ---------------- */
+const ONB_STEPS = [
+  {label:'Pump', title:'Pump details', sub:'The name and contact that appear on reports and printouts.'},
+  {label:'Partners', title:'Partners', sub:'Who owns the pump, and how the profit is shared.'},
+  {label:'Storage', title:'Storage & tanks', sub:'Tank capacity and the opening stock you are starting with.'},
+  {label:'Dispensers', title:'Dispensers & nozzles', sub:'Every meter that records a sale. Each nozzle keeps its own reading.'},
+  {label:'Rates', title:'Selling rates', sub:'Today’s selling price per litre for each fuel.'},
+  {label:'Team', title:'Staff & bank', sub:'Optional. You can add or change these later in Settings.'},
+  {label:'Review', title:'Review your setup', sub:'Check the details before opening the hisab.'},
+  {label:'Welcome', title:'Welcome', sub:''}
+];
+
+function onbProductSelect(id, value){
+  return '<select id="' + id + '">' + DB.products.map(function(p){
+    return '<option value="' + attr(p.id) + '"' + (p.id === value ? ' selected' : '') + '>' + esc(p.name) + '</option>';
+  }).join('') + '</select>';
+}
+function onbDraft(){
+  const s = DB.settings || {};
+  const partners = (DB.partners && DB.partners.length ? DB.partners : [
+    {id:'p1', name:'', role:'Managing Partner', share:50},
+    {id:'p2', name:'', role:'Partner', share:50}
+  ]).map(function(p){
+    return {id:p.id, name:p.name || '', role:p.role || 'Partner', share:num(p.share)};
+  });
+  const tanks = (DB.tanks && DB.tanks.length ? DB.tanks : [
+    {id:'t1', name:'Tank 1', product:'petrol'},
+    {id:'t2', name:'Tank 2', product:'diesel'}
+  ]).map(function(t){
+    return {id:t.id, name:t.name || '', product:t.product || 'petrol', capacity:num(t.capacity) || 1000, opening:num(t.opening), openingRate:num(t.openingRate)};
+  });
+  const nozzles = (DB.nozzles && DB.nozzles.length ? DB.nozzles : [
+    {id:'n1', dispenser:'Dispenser 1', name:'Nozzle 1', product:'petrol'},
+    {id:'n2', dispenser:'Dispenser 2', name:'Nozzle 1', product:'diesel'}
+  ]).map(function(n){
+    return {id:n.id, dispenser:n.dispenser || 'Dispenser 1', name:n.name || 'Nozzle 1', product:n.product || 'petrol', openingMeter:num(n.openingMeter)};
+  });
+  const staff = (DB.staff || []).map(function(x){
+    return {id:x.id, name:x.name || '', role:x.role || '', salary:num(x.salary)};
+  });
+  const banks = (DB.banks || []).map(function(b){
+    return {id:b.id, name:b.name || '', opening:num(b.opening)};
+  });
+  return {
+    pumpName: s.pumpName || '',
+    address: s.address || '',
+    phone: s.phone || '',
+    openingCash: num(s.openingCash),
+    partners: partners,
+    tanks: tanks,
+    nozzles: nozzles,
+    rates: {
+      petrol: currentRate('petrol') || num((DB.rates || {}).petrol),
+      diesel: currentRate('diesel') || num((DB.rates || {}).diesel)
+    },
+    staff: staff,
+    banks: banks.length ? banks : [{id:'bnk_main', name:'Main Bank', opening:0}]
+  };
+}
+function startOnboarding(){
+  APP_STARTED = false;
+  ONB.active = true;
+  ONB.step = 0;
+  ONB.busy = false;
+  ONB.error = '';
+  ONB.draft = onbDraft();
+  gateBusy(false);
+  renderOnboarding();
+  window.scrollTo({top:0, behavior:'instant'});
+}
+function renderOnboarding(){
+  document.body.classList.add('gate-mode');
+  gateBusy(false);
+  const app = $('#app');
+  if(app) app.innerHTML = onbHTML();
+  const bn = $('#bottomnav');
+  if(bn) bn.innerHTML = '';
+}
+function onbHeadHTML(){
+  return '<header class="onb-top">' +
+    '<div class="brand-logo">' + icon('pump', 21) + '</div>' +
+    '<div><div class="onb-title">' + esc(ONB.draft.pumpName || 'Set up your pump') + '</div><div class="onb-sub">First-time setup</div></div>' +
+    '<div class="onb-cloud">' + icon('cloud', 14) + ' ' + esc(CLOUD.user ? (CLOUD.user.email || 'Signed in') : 'This device') + '</div>' +
+    (DB.settings.setupComplete ? '<button class="icon-btn bare" type="button" data-act="onb-cancel" aria-label="Close setup">' + icon('x', 19) + '</button>' : '') +
+  '</header>';
+}
+function onbHTML(){
+  if(ONB.step === 7) return onbWelcomeHTML();
+  const st = ONB_STEPS[ONB.step];
+  const steps = ONB_STEPS.slice(0, 7).map(function(x, i){
+    const cls = i === ONB.step ? 'on' : i < ONB.step ? 'done' : '';
+    return '<div class="onb-step ' + cls + '"><span class="n">' + (i < ONB.step ? icon('check', 12) : (i + 1)) + '</span><span>' + esc(x.label) + '</span></div>';
+  }).join('');
+  return '<div class="onb">' + onbHeadHTML() +
+    '<div class="onb-wrap">' +
+      '<aside class="onb-steps">' + steps + '</aside>' +
+      '<main class="onb-card">' +
+        '<div class="onb-head"><div class="eyebrow">Step ' + (ONB.step + 1) + ' of 7</div><h2>' + esc(st.title) + '</h2><p>' + esc(st.sub) + '</p></div>' +
+        '<div class="onb-body">' +
+          '<div class="onb-error' + (ONB.error ? ' show' : '') + '" id="onb-error">' + esc(ONB.error || '') + '</div>' +
+          onbStepHTML(ONB.step) +
+        '</div>' +
+        onbFootHTML() +
+      '</main>' +
+    '</div></div>';
+}
+function onbFootHTML(){
+  const last = ONB.step === 6;
+  return '<div class="onb-foot">' +
+    (ONB.step > 0 ? '<button class="btn ghost" type="button" data-act="onb-back">' + icon('arrowLeft', 15) + ' Back</button>' : '') +
+    (ONB.step === 5 ? '<button class="btn ghost" type="button" data-act="onb-next">Skip for now</button>' : '') +
+    '<button class="btn onb-next" type="button" data-act="onb-next"' + (ONB.busy ? ' disabled' : '') + '>' + icon(last ? 'check' : 'chevronR', 15) + ' ' + (last ? 'Finish setup' : 'Continue') + '</button>' +
+  '</div>';
+}
+function onbStepHTML(step){
+  const d = ONB.draft;
+  if(step === 0){
+    return '<div class="onb-grid">' +
+      '<div class="field full"><label for="onb-pump">Pump name</label><input id="onb-pump" value="' + attr(d.pumpName) + '" placeholder="e.g. Ghufran Khalil Petroleum Pump" autocomplete="organization" required></div>' +
+      '<div class="field"><label for="onb-phone">Phone</label><input id="onb-phone" type="tel" value="' + attr(d.phone) + '" placeholder="03xx-xxxxxxx"></div>' +
+      '<div class="field"><label for="onb-cash">Opening cash in hand (Rs)</label><input id="onb-cash" type="number" step="0.01" min="0" inputmode="decimal" value="' + num(d.openingCash) + '"></div>' +
+      '<div class="field full"><label for="onb-address">Address</label><input id="onb-address" value="' + attr(d.address) + '" placeholder="Village / city / landmark"></div>' +
+    '</div>' +
+    '<div class="onb-tip">This name appears on the app, reports and printouts. Opening cash is the money in the drawer before your first entry — leave it at 0 if you will add it later.</div>';
+  }
+  if(step === 1){
+    const total = sum(d.partners, function(p){ return num(p.share); });
+    return d.partners.map(function(p, i){
+      return '<div class="onb-row"><div class="onb-row-top"><span class="onb-row-title">Partner ' + (i + 1) + '</span>' +
+        (d.partners.length > 1 ? '<button class="onb-del" type="button" data-act="onb-del-partner" data-idx="' + i + '" aria-label="Remove partner">' + icon('trash', 13) + '</button>' : '') +
+        '</div><div class="onb-grid">' +
+          '<div class="field"><label>Name</label><input id="onb-p-name-' + i + '" value="' + attr(p.name) + '" placeholder="Full name"></div>' +
+          '<div class="field"><label>Role</label><input id="onb-p-role-' + i + '" value="' + attr(p.role) + '" placeholder="e.g. Partner"></div>' +
+          '<div class="field"><label>Share %</label><input id="onb-p-share-' + i + '" data-share="1" type="number" step="0.01" min="0" max="100" value="' + num(p.share) + '"></div>' +
+        '</div></div>';
+    }).join('') +
+    '<button class="onb-add" type="button" data-act="onb-add-partner">' + icon('plus', 14) + ' Add partner</button>' +
+    '<div class="onb-share-total">Total share: <b id="onb-share-total">' + round2(total) + '%</b> · must add up to 100%</div>';
+  }
+  if(step === 2){
+    return d.tanks.map(function(t, i){
+      return '<div class="onb-row"><div class="onb-row-top"><span class="onb-row-title">Tank ' + (i + 1) + '</span>' +
+        (d.tanks.length > 1 ? '<button class="onb-del" type="button" data-act="onb-del-tank" data-idx="' + i + '" aria-label="Remove tank">' + icon('trash', 13) + '</button>' : '') +
+        '</div><div class="onb-grid">' +
+          '<div class="field"><label>Tank name</label><input id="onb-t-name-' + i + '" value="' + attr(t.name) + '" placeholder="Tank 1"></div>' +
+          '<div class="field"><label>Fuel</label>' + onbProductSelect('onb-t-product-' + i, t.product) + '</div>' +
+          '<div class="field"><label>Capacity (litres)</label><input id="onb-t-cap-' + i + '" type="number" step="1" min="0" value="' + num(t.capacity) + '"></div>' +
+          '<div class="field"><label>Opening stock (litres)</label><input id="onb-t-open-' + i + '" type="number" step="0.01" min="0" value="' + num(t.opening) + '"></div>' +
+          '<div class="field full"><label>Opening stock cost (Rs / litre)</label><input id="onb-t-rate-' + i + '" type="number" step="0.01" min="0" value="' + num(t.openingRate) + '"></div>' +
+        '</div></div>';
+    }).join('') +
+    '<button class="onb-add" type="button" data-act="onb-add-tank">' + icon('plus', 14) + ' Add another tank</button>' +
+    '<div class="onb-tip">Opening stock and its cost are used once, as the starting point for stock and profit. If the tanks are empty, leave the opening stock at 0.</div>';
+  }
+  if(step === 3){
+    return d.nozzles.map(function(n, i){
+      return '<div class="onb-row"><div class="onb-row-top"><span class="onb-row-title">Nozzle ' + (i + 1) + '</span>' +
+        (d.nozzles.length > 1 ? '<button class="onb-del" type="button" data-act="onb-del-nozzle" data-idx="' + i + '" aria-label="Remove nozzle">' + icon('trash', 13) + '</button>' : '') +
+        '</div><div class="onb-grid">' +
+          '<div class="field"><label>Dispenser name</label><input id="onb-n-disp-' + i + '" value="' + attr(n.dispenser) + '" placeholder="Dispenser 1"></div>' +
+          '<div class="field"><label>Nozzle name</label><input id="onb-n-name-' + i + '" value="' + attr(n.name) + '" placeholder="Nozzle 1"></div>' +
+          '<div class="field"><label>Fuel</label>' + onbProductSelect('onb-n-product-' + i, n.product) + '</div>' +
+          '<div class="field"><label>Opening meter reading (L)</label><input id="onb-n-meter-' + i + '" type="number" step="0.01" min="0" value="' + num(n.openingMeter) + '"></div>' +
+        '</div></div>';
+    }).join('') +
+    '<button class="onb-add" type="button" data-act="onb-add-nozzle">' + icon('plus', 14) + ' Add another nozzle</button>' +
+    '<div class="onb-tip">Add one row for every nozzle on every dispenser. The opening meter is the number shown on the machine right now, before the first sale in this app. Meter resets can be recorded later in Settings.</div>';
+  }
+  if(step === 4){
+    return '<div class="onb-rate">' +
+      DatabaseRateCard('petrol', d.rates.petrol) +
+      DatabaseRateCard('diesel', d.rates.diesel) +
+    '</div>' +
+    '<div class="onb-tip">These are today’s selling prices. You can change them any time from Settings → Current selling rates. Every sale keeps the rate that was active when it was recorded.</div>';
+  }
+  if(step === 5){
+    return '<div class="onb-row"><div class="onb-row-top"><span class="onb-row-title">Staff (optional)</span></div>' +
+      (d.staff.length ? d.staff.map(function(s, i){
+        return '<div class="onb-grid" style="margin-bottom:10px">' +
+          '<div class="field"><label>Name</label><input id="onb-s-name-' + i + '" value="' + attr(s.name) + '" placeholder="Staff name"></div>' +
+          '<div class="field"><label>Role</label><input id="onb-s-role-' + i + '" value="' + attr(s.role) + '" placeholder="Attendant / Manager"></div>' +
+          '<div class="field"><label>Monthly salary (Rs)</label><input id="onb-s-salary-' + i + '" type="number" step="0.01" min="0" value="' + num(s.salary) + '"></div>' +
+          '<div class="field" style="justify-content:flex-end"><button class="btn ghost sm" type="button" data-act="onb-del-staff" data-idx="' + i + '">' + icon('trash', 13) + ' Remove</button></div>' +
+        '</div>';
+      }).join('') : '<div class="tiny muted" style="padding:2px 0 4px">No staff added yet.</div>') +
+      '<button class="onb-add" type="button" data-act="onb-add-staff">' + icon('plus', 14) + ' Add staff member</button>' +
+    '</div>' +
+    '<div class="onb-row"><div class="onb-row-top"><span class="onb-row-title">Bank accounts (optional)</span></div>' +
+      d.banks.map(function(b, i){
+        return '<div class="onb-grid" style="margin-bottom:10px">' +
+          '<div class="field"><label>Bank name</label><input id="onb-b-name-' + i + '" value="' + attr(b.name) + '" placeholder="e.g. HBL Current"></div>' +
+          '<div class="field"><label>Opening balance (Rs)</label><input id="onb-b-open-' + i + '" type="number" step="0.01" min="0" value="' + num(b.opening) + '"></div>' +
+          '<div class="field" style="justify-content:flex-end"><button class="btn ghost sm" type="button" data-act="onb-del-bank" data-idx="' + i + '">' + icon('trash', 13) + ' Remove</button></div>' +
+        '</div>';
+      }).join('') +
+      '<button class="onb-add" type="button" data-act="onb-add-bank">' + icon('plus', 14) + ' Add bank account</button>' +
+    '</div>' +
+    '<div class="onb-tip">Both sections are optional. You can also add staff and banks later from their pages in the app.</div>';
+  }
+  return onbReviewHTML();
+}
+function DatabaseRateCard(product, value){
+  const p = productById(product);
+  return '<div class="onb-row"><div class="onb-row-top"><span class="onb-row-title">' + esc(p.name) + '</span><span class="badge amber">Rs / litre</span></div>' +
+    '<div class="field"><label for="onb-rate-' + attr(product) + '">Selling rate</label><input id="onb-rate-' + attr(product) + '" type="number" step="0.01" min="0" inputmode="decimal" value="' + num(value) + '"></div>' +
+    '<div class="tiny muted">Applied to new meter readings</div></div>';
+}
+function onbReviewHTML(){
+  const d = ONB.draft;
+  function card(label, value, sub){
+    return '<div class="onb-rev"><div class="rl">' + esc(label) + '</div><div class="rv">' + esc(value) + '</div>' + (sub ? '<div class="rs">' + sub + '</div>' : '') + '</div>';
+  }
+  const partnerNames = d.partners.map(function(p){ return esc(p.name) + ' · ' + num(p.share) + '%'; }).join('<br>') || '—';
+  const tankLines = d.tanks.map(function(t){ return esc(t.name) + ' · ' + esc(productById(t.product).name) + ' · ' + nfInt.format(num(t.capacity)) + ' L'; }).join('<br>') || '—';
+  const nozzleLines = d.nozzles.map(function(n){ return esc(n.dispenser) + ' · ' + esc(n.name) + ' · ' + esc(productById(n.product).name); }).join('<br>') || '—';
+  const staffCount = d.staff.filter(function(s){ return s.name; }).length;
+  const bankCount = d.banks.filter(function(b){ return b.name; }).length;
+  return '<div class="onb-review">' +
+    card('Pump', d.pumpName || '—', (d.address ? esc(d.address) + '<br>' : '') + (d.phone ? esc(d.phone) : '')) +
+    card('Partners', d.partners.length + (d.partners.length === 1 ? ' partner' : ' partners'), partnerNames) +
+    card('Storage', d.tanks.length + (d.tanks.length === 1 ? ' tank' : ' tanks'), tankLines) +
+    card('Dispensers', d.nozzles.length + (d.nozzles.length === 1 ? ' nozzle' : ' nozzles'), nozzleLines) +
+    card('Selling rates', 'Petrol ' + (num(d.rates.petrol) ? money0(d.rates.petrol) : '—') + ' / L', 'Diesel ' + (num(d.rates.diesel) ? money0(d.rates.diesel) : '—') + ' / L') +
+    card('Opening cash', money0(d.openingCash), 'Staff: ' + staffCount + ' · Banks: ' + bankCount) +
+  '</div>' +
+  '<div class="onb-tip">' + (CLOUD.user
+    ? 'Your hisab will be saved to <b>' + esc(CLOUD.user.email || 'your account') + '</b> and synced to every phone that signs in. Anything already recorded on this phone is kept.'
+    : 'Cloud sync is off. The hisab will be saved on this phone. You can connect it to the cloud later from Settings.') + '</div>';
+}
+function onbWelcomeHTML(){
+  const d = ONB.draft;
+  const cloudOn = !!(CLOUD.ready && CLOUD.stationId && CLOUD.user);
+  return '<div class="onb">' + onbHeadHTML() +
+    '<div class="onb-wrap" style="grid-template-columns:1fr;max-width:760px">' +
+      '<main class="onb-card"><div class="onb-welcome">' +
+        '<div class="onb-badge">' + icon('check', 38) + '</div>' +
+        '<div class="gate-eyebrow">' + (cloudOn ? 'Cloud hisab ready' : 'Setup complete') + '</div>' +
+        '<h1>Welcome' + (d.pumpName ? ', ' + esc(d.pumpName) : '') + '</h1>' +
+        '<p>Your pump is ready. Every sale, purchase, payment and expense you record will ' + (cloudOn ? 'sync to the cloud automatically.' : 'be saved safely on this device.') + '</p>' +
+        '<div class="onb-welcome-sum">' +
+          '<div class="ws"><div class="wl">Partners</div><div class="wv">' + d.partners.length + ' · ' + round2(sum(d.partners, function(p){ return num(p.share); })) + '%</div></div>' +
+          '<div class="ws"><div class="wl">Nozzles</div><div class="wv">' + d.nozzles.length + '</div></div>' +
+          '<div class="ws"><div class="wl">Petrol rate</div><div class="wv">' + (num(d.rates.petrol) ? money0(d.rates.petrol) + ' / L' : '—') + '</div></div>' +
+        '</div>' +
+        '<button class="btn" type="button" data-act="onb-start">' + icon('grid', 16) + ' Start the hisab</button>' +
+        '<div class="tiny muted" style="margin-top:8px">' + esc(cloudStatusLabel()) + (CLOUD.user ? ' · ' + esc(CLOUD.user.email || '') : ' · no account') + '</div>' +
+      '</div></main>' +
+    '</div></div>';
+}
+function onbCapture(){
+  const val = function(id){ const el = $('#' + id); return el ? el.value : ''; };
+  const n = function(id){ return num(val(id)); };
+  const d = ONB.draft;
+  if(ONB.step === 0){
+    d.pumpName = val('onb-pump').trim();
+    d.phone = val('onb-phone').trim();
+    d.openingCash = n('onb-cash');
+    d.address = val('onb-address').trim();
+  }
+  if(ONB.step === 1){
+    d.partners = d.partners.map(function(p, i){
+      return {id:p.id, name:val('onb-p-name-' + i).trim(), role:val('onb-p-role-' + i).trim() || 'Partner', share:n('onb-p-share-' + i)};
+    });
+  }
+  if(ONB.step === 2){
+    d.tanks = d.tanks.map(function(t, i){
+      return {id:t.id, name:val('onb-t-name-' + i).trim(), product:val('onb-t-product-' + i) || 'petrol', capacity:n('onb-t-cap-' + i), opening:n('onb-t-open-' + i), openingRate:n('onb-t-rate-' + i)};
+    });
+  }
+  if(ONB.step === 3){
+    d.nozzles = d.nozzles.map(function(x, i){
+      return {id:x.id, dispenser:val('onb-n-disp-' + i).trim(), name:val('onb-n-name-' + i).trim(), product:val('onb-n-product-' + i) || 'petrol', openingMeter:n('onb-n-meter-' + i)};
+    });
+  }
+  if(ONB.step === 4){
+    d.rates = {petrol: n('onb-rate-petrol'), diesel: n('onb-rate-diesel')};
+  }
+  if(ONB.step === 5){
+    d.staff = d.staff.map(function(s, i){
+      return {id:s.id, name:val('onb-s-name-' + i).trim(), role:val('onb-s-role-' + i).trim(), salary:n('onb-s-salary-' + i)};
+    });
+    d.banks = d.banks.map(function(b, i){
+      return {id:b.id, name:val('onb-b-name-' + i).trim(), opening:n('onb-b-open-' + i)};
+    });
+  }
+}
+function onbValidate(step){
+  const d = ONB.draft;
+  if(step === 0){
+    if(!d.pumpName) return 'Enter the pump name.';
+    if(num(d.openingCash) < 0) return 'Opening cash cannot be negative.';
+  }
+  if(step === 1){
+    if(!d.partners.length) return 'Add at least one partner.';
+    for(let i=0; i<d.partners.length; i++){
+      if(!d.partners[i].name) return 'Enter the name of partner ' + (i + 1) + '.';
+      if(num(d.partners[i].share) < 0) return 'Partner shares cannot be negative.';
+    }
+    const total = sum(d.partners, function(p){ return num(p.share); });
+    if(Math.abs(total - 100) > 0.01) return 'Partner shares must add up to 100% (they add up to ' + round2(total) + '%).';
+  }
+  if(step === 2){
+    if(!d.tanks.length) return 'Add at least one tank.';
+    for(let i=0; i<d.tanks.length; i++){
+      const t = d.tanks[i];
+      if(!t.name) return 'Enter the name of tank ' + (i + 1) + '.';
+      if(num(t.capacity) <= 0) return 'Tank ' + (i + 1) + ' needs a capacity greater than zero.';
+      if(num(t.opening) < 0) return 'Opening stock cannot be negative.';
+      if(num(t.openingRate) < 0) return 'Opening stock cost cannot be negative.';
+    }
+  }
+  if(step === 3){
+    if(!d.nozzles.length) return 'Add at least one dispenser nozzle.';
+    for(let i=0; i<d.nozzles.length; i++){
+      const n = d.nozzles[i];
+      if(!n.dispenser) return 'Enter the dispenser name for nozzle ' + (i + 1) + '.';
+      if(!n.name) return 'Enter the nozzle name for nozzle ' + (i + 1) + '.';
+      if(num(n.openingMeter) < 0) return 'Opening meter reading cannot be negative.';
+    }
+  }
+  if(step === 4){
+    if(num(d.rates.petrol) < 0 || num(d.rates.diesel) < 0) return 'Selling rates cannot be negative.';
+    if(num(d.rates.petrol) <= 0 && num(d.rates.diesel) <= 0) return 'Enter at least one selling rate.';
+  }
+  return '';
+}
+function onbNext(){
+  if(ONB.busy) return;
+  onbCapture();
+  const err = onbValidate(ONB.step);
+  if(err){ ONB.error = err; renderOnboarding(); return; }
+  ONB.error = '';
+  if(ONB.step < 6){ ONB.step++; renderOnboarding(); window.scrollTo({top:0, behavior:'instant'}); return; }
+  onbFinish();
+}
+function onbBack(){
+  if(ONB.busy) return;
+  onbCapture();
+  ONB.error = '';
+  if(ONB.step > 0) ONB.step--;
+  renderOnboarding();
+}
+function onbAdd(kind){
+  onbCapture();
+  const d = ONB.draft;
+  if(kind === 'partner') d.partners.push({id:uid('p'), name:'', role:'Partner', share:0});
+  if(kind === 'tank') d.tanks.push({id:uid('tank'), name:'Tank ' + (d.tanks.length + 1), product:d.tanks.length % 2 ? 'diesel' : 'petrol', capacity:1000, opening:0, openingRate:0});
+  if(kind === 'nozzle') d.nozzles.push({id:uid('noz'), dispenser:'Dispenser ' + (d.nozzles.length + 1), name:'Nozzle 1', product:'petrol', openingMeter:0});
+  if(kind === 'staff') d.staff.push({id:uid('stf'), name:'', role:'', salary:0});
+  if(kind === 'bank') d.banks.push({id:uid('bnk'), name:'', opening:0});
+  renderOnboarding();
+}
+function onbDel(kind, idx){
+  onbCapture();
+  const d = ONB.draft;
+  if(kind === 'partner' && d.partners.length > 1) d.partners.splice(idx, 1);
+  if(kind === 'tank' && d.tanks.length > 1) d.tanks.splice(idx, 1);
+  if(kind === 'nozzle' && d.nozzles.length > 1) d.nozzles.splice(idx, 1);
+  if(kind === 'staff') d.staff.splice(idx, 1);
+  if(kind === 'bank' && d.banks.length > 1) d.banks.splice(idx, 1);
+  renderOnboarding();
+}
+function onbApply(){
+  const d = ONB.draft;
+  DB.settings.pumpName = d.pumpName;
+  DB.settings.address = d.address;
+  DB.settings.phone = d.phone;
+  DB.settings.openingCash = round2(num(d.openingCash));
+  DB.settings.setupComplete = true;
+  DB.settings.setupDismissed = true;
+
+  DB.partners = d.partners.map(function(p){
+    return {id:p.id || uid('p'), name:p.name, role:p.role || 'Partner', share:round2(num(p.share))};
+  });
+  DB.tanks = d.tanks.map(function(t){
+    return {id:t.id || uid('tank'), name:t.name, product:t.product || 'petrol', capacity:round2(num(t.capacity)), opening:round2(num(t.opening)), openingRate:round2(num(t.openingRate))};
+  });
+  DB.nozzles = d.nozzles.map(function(n){
+    return {id:n.id || uid('noz'), dispenser:n.dispenser, name:n.name, product:n.product || 'petrol', openingMeter:round2(num(n.openingMeter))};
+  });
+
+  ['petrol', 'diesel'].forEach(function(prod){
+    const r = round2(num(d.rates[prod]));
+    if(r > 0 && Math.abs(r - currentRate(prod)) > 0.001){
+      DB.rateHistory.push({id:uid('rate'), product:prod, rate:r, date:todayISO(), createdAt:Date.now()});
+    }
+    DB.rates[prod] = r;
+  });
+
+  const staff = d.staff.filter(function(s){ return s.name; });
+  if(staff.length){
+    DB.staff = staff.map(function(s){
+      const prev = (DB.staff || []).find(function(x){ return x.id === s.id; }) || {};
+      return {id:s.id || uid('stf'), name:s.name, role:s.role || '', phone:prev.phone || '', salary:round2(num(s.salary)), joinDate:prev.joinDate || todayISO(), createdAt:prev.createdAt || Date.now()};
+    });
+  }
+
+  const banks = d.banks.filter(function(b){ return b.name; });
+  const hasBankTx = Array.isArray(DB.bankTx) && DB.bankTx.length > 0;
+  const onlyDefaultBank = !DB.banks.length || (DB.banks.length === 1 && DB.banks[0].id === 'bnk_main');
+  if(banks.length && !hasBankTx && onlyDefaultBank){
+    DB.banks = banks.map(function(b){
+      return {id:b.id || uid('bnk'), name:b.name, opening:round2(num(b.opening)), createdAt:Date.now()};
+    });
+  }
+  if(!DB.banks.length) DB.banks = [{id:'bnk_main', name:'Main Bank', opening:0, createdAt:Date.now()}];
+
+  DB.meta.createdAt = DB.meta.createdAt || new Date().toISOString();
+  DB.meta.schema = 1;
+}
+async function onbFinish(){
+  if(ONB.busy) return;
+  onbCapture();
+  const err = onbValidate(0) || onbValidate(1) || onbValidate(2) || onbValidate(3) || onbValidate(4);
+  if(err){ ONB.error = err; renderOnboarding(); return; }
+  ONB.busy = true;
+  ONB.error = '';
+  gateBusy(true, 'Saving your pump…', 'Writing the details and opening meters');
+  try{
+    onbApply();
+    localTrackRemovals();
+    saveLocalOnly();
+    if(CLOUD.ready && CLOUD.user){
+      if(!CLOUD.hasStation){
+        gateBusy(true, 'Creating your cloud hisab…', 'This only happens once');
+        await cloudCreateStation();
+      } else {
+        await cloudPush();
+      }
+      cloudStartSync();
+    }
+    ONB.busy = false;
+    ONB.step = 7;
+    gateBusy(false);
+    renderOnboarding();
+    window.scrollTo({top:0, behavior:'instant'});
+  } catch(e){
+    ONB.busy = false;
+    gateBusy(false);
+    ONB.error = 'Could not finish setup: ' + cloudFriendlyError(e) + ' Your details are saved on this phone — tap Finish setup to retry.';
+    renderOnboarding();
+  }
+}
+function onbStart(){
+  ONB.active = false;
+  ONB.busy = false;
+  startCloudApp();
+  toast('Welcome to ' + DB.settings.pumpName, 'ok');
+}
+function onbCancel(){
+  if(ONB.busy) return;
+  ONB.active = false;
+  ONB.busy = false;
+  startCloudApp();
+}
+
+/* ---------------- CLOUD EVENT HANDLERS ---------------- */
+document.addEventListener('click', function(e){
+  const el = e.target.closest('[data-act]');
+  if(!el) return;
+  const act = el.getAttribute('data-act');
+  const idx = parseInt(el.getAttribute('data-idx'), 10);
+  switch(act){
+    case 'auth-google': cloudGoogleSignIn(); break;
+    case 'cloud-signin': cloudSignIn(); break;
+    case 'cloud-signout': confirmCloudSignOut(); break;
+    case 'cloud-sync-now': cloudSyncNow(); break;
+    case 'cloud-run-wizard': confirmRunWizard(); break;
+    case 'onb-next': onbNext(); break;
+    case 'onb-back': onbBack(); break;
+    case 'onb-add-partner': onbAdd('partner'); break;
+    case 'onb-del-partner': onbDel('partner', idx); break;
+    case 'onb-add-tank': onbAdd('tank'); break;
+    case 'onb-del-tank': onbDel('tank', idx); break;
+    case 'onb-add-nozzle': onbAdd('nozzle'); break;
+    case 'onb-del-nozzle': onbDel('nozzle', idx); break;
+    case 'onb-add-staff': onbAdd('staff'); break;
+    case 'onb-del-staff': onbDel('staff', idx); break;
+    case 'onb-add-bank': onbAdd('bank'); break;
+    case 'onb-del-bank': onbDel('bank', idx); break;
+    case 'onb-start': onbStart(); break;
+    case 'onb-cancel': onbCancel(); break;
+  }
+});
+document.addEventListener('input', function(e){
+  if(e.target && e.target.hasAttribute && e.target.hasAttribute('data-share')){
+    const total = $$('[data-share]').reduce(function(a, el){ return a + num(el.value); }, 0);
+    const out = $('#onb-share-total');
+    if(out) out.textContent = round2(total) + '%';
+  }
+});
+window.addEventListener('online', function(){
+  (async function(){
+    if(CLOUD.configured && !CLOUD.ready){
+      try{
+        await cloudInit(cloudCfg());
+        cloudBindAuth();
+      } catch(e){ return; }
+    }
+    if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user) return;
+    cloudSetStatus('syncing');
+    cloudPush();
+  })();
+});
+window.addEventListener('offline', function(){
+  if(!CLOUD.ready || !CLOUD.stationId || !CLOUD.user) return;
+  cloudSetStatus('offline');
+});
+window.addEventListener('pagehide', function(){
+  if(CLOUD.ready && CLOUD.stationId && CLOUD.user){
+    clearTimeout(SYNC.timer);
+    cloudPush();
+  }
+});
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'hidden' && CLOUD.ready && CLOUD.stationId && CLOUD.user){
+    clearTimeout(SYNC.timer);
+    cloudPush();
+  }
+});
+
 /* ---------------- BOOT ---------------- */
 window.__androidBack = function(){
   try {
     if($('#modal-root') && $('#modal-root').classList.contains('open')){ closeModal(); return true; }
+    if(ONB.active){
+      if(ONB.busy) return true;
+      if(ONB.step > 0 && ONB.step < 7){ onbBack(); return true; }
+      if(DB.settings.setupComplete && ONB.step !== 7){ onbCancel(); return true; }
+      return true;
+    }
+    if(document.body.classList.contains('gate-mode')) return true;
     if(UI.moreOpen){ closeSheet(); return true; }
     if(UI.page === 'accounts' && UI.accId){
       UI.accId = null; UI.accTxSearch = '';
@@ -4246,12 +5990,13 @@ window.__androidBack = function(){
 (function boot(){
   applyTheme();
   document.title = DB.settings.pumpName + ' — Hisab';
-  render();
   window.addEventListener('keydown', function(e){
     if(e.key === 'Escape'){ closeModal(); closeSheet(); }
   });
   $('#sheet-back').addEventListener('click', closeSheet);
-
+  try { localStorage.removeItem('gkpp_firebase_cfg_v1'); } catch(e){}
+  localKnownInit();
+  cloudBoot();
 })();
 
 </script>
