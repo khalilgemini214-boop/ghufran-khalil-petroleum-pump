@@ -68,10 +68,19 @@ jobs:
         run: ./gradlew assembleDebug --stacktrace
 
       - name: Show APK signing SHA-1
+        id: apk_sha
         run: |
-          echo "### APK signing certificate" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk | grep -E "SHA-1|SHA1" >> $GITHUB_STEP_SUMMARY || true
+          SHA=$("$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk | tr -d '\r' | grep -E "SHA-1|SHA1" | head -n 1 | sed 's/.*digest: //')
+          if [ -z "$SHA" ]; then
+            echo "Could not read the APK signing SHA-1"
+            exit 1
+          fi
+          COMPACT=$(echo "$SHA" | tr -d ':')
+          echo "APK SHA-1: $SHA"
+          echo "APK SHA-1: $SHA" >> $GITHUB_STEP_SUMMARY
+          echo "::notice title=APK SHA-1::$SHA"
+          echo "sha=$SHA" >> $GITHUB_OUTPUT
+          echo "sha_compact=$COMPACT" >> $GITHUB_OUTPUT
 
       - name: Rename APK
         run: cp android/app/build/outputs/apk/debug/app-debug.apk Ghufran-Khalil-Petroleum-Pump.apk
@@ -79,7 +88,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Ghufran-Khalil-Petroleum-Pump-APK
+          name: Ghufran-Khalil-Petroleum-Pump-APK-SHA1-${{ steps.apk_sha.outputs.sha_compact }}
           path: Ghufran-Khalil-Petroleum-Pump.apk
           if-no-files-found: error
           retention-days: 90
