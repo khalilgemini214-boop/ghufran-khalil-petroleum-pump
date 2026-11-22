@@ -5254,6 +5254,34 @@ function showAuthScreen(msg){
     '<div class="gate-note">' + icon('shield', 14) + '<span>Your Google name and email are only used to sign in. Hisab data stays in your own private station.</span></div>'
   );
 }
+function cloudNativeAuthPlugin(){
+  try{
+    const cap = window.Capacitor;
+    if(!cap || !cap.isNativePlatform || !cap.isNativePlatform()) return null;
+    return (cap.Plugins && cap.Plugins.FirebaseAuthentication) || null;
+  } catch(e){ return null; }
+}
+async function cloudGoogleSignInNative(plugin){
+  gateBusy(true, 'Opening Google…', 'Choose the account for this pump');
+  try{
+    // Native Google Sign-In, then bridge the ID token into the web Firebase
+    // SDK so Firestore and the rest of the app see the same signed-in user.
+    const result = await plugin.signInWithGoogle({ skipNativeAuth: true });
+    const idToken = result && result.credential && result.credential.idToken;
+    if(!idToken) throw new Error('Google did not return an ID token.');
+    const credential = firebase.auth.GoogleAuthProvider.credential(idToken);
+    await CLOUD.auth.signInWithCredential(credential);
+    // onAuthStateChanged opens the hisab.
+  } catch(e){
+    gateBusy(false);
+    const msg = String((e && e.message) || (e && e.code) || '');
+    if(msg.indexOf('Default FirebaseApp') >= 0 || msg.indexOf('google-services') >= 0 || msg.indexOf('No provider') >= 0){
+      gateError('Native Google Sign-In is not configured in this APK yet. Open the live website in Chrome, or rebuild the APK with its Firebase Android configuration.');
+    } else {
+      gateError('Google sign-in failed. ' + (msg || 'Please try again.'));
+    }
+  }
+}
 async function cloudGoogleSignIn(){
   if(location.protocol === 'file:'){
     gateError('Google sign-in cannot run from a local file. Open the live app: ' + LIVE_APP_URL);
@@ -5269,6 +5297,11 @@ async function cloudGoogleSignIn(){
       gateError(e.message || 'Could not connect to Firebase.');
       return;
     }
+  }
+  const nativePlugin = cloudNativeAuthPlugin();
+  if(nativePlugin){
+    await cloudGoogleSignInNative(nativePlugin);
+    return;
   }
   gateError('');
   gateBusy(true, 'Opening Google…', 'Choose the account for this pump');
